@@ -141,108 +141,199 @@
       <a href="index.html">首页</a><span class="sep">›</span><span>特性</span><span class="sep">›</span><span>特性总览</span>
     </nav>
     <article>
-      <h1>特性总览</h1>
-      <p class="lead">MindIE-LLM 的特性按用途分为六大类：<strong>基础并行 / 量化 / 长序列 /
-      调度 / 加速 / 交互</strong>，再加一项「其他」。本章给出全景索引与兼容矩阵；具体细节
-      参见专题章节：<a href="quantization.html">量化</a>、
-      <a href="parallelism.html">并行</a>、<a href="acceleration.html">加速</a>。</p>
+      <h1>特性总览（索引）</h1>
+      <p class="lead">本章是 MindIE-LLM 全部 32 个特性的<strong>索引页</strong>。每条特性都
+      链到独立的详解页，包括「原理 / 数据流 / 关键代码 / 配置 / 限制 / 调优」。
+      整体仍按六大类：基础并行 / 量化 / 长序列 / 调度 / 加速 / 交互（含其他）。</p>
 
-      <h2 id="catalog">特性目录</h2>
-
-      <h3 id="cat-basic">① 基础特性</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>特性</th><th>简介</th><th>主要价值</th></tr></thead>
-          <tbody>
-            <tr><td>Multi-LoRA</td><td>同时托管多个 LoRA Adapter，请求级动态切换</td><td>多业务共部署、显存复用</td></tr>
-            <tr><td>MoE</td><td>稀疏激活专家网络，显著扩展容量</td><td>万亿参数能力</td></tr>
-            <tr><td>MLA</td><td>低秩 KV 联合压缩，破解 KV 瓶颈</td><td>支持超长上下文</td></tr>
-            <tr><td>负载均衡</td><td>降低 NPU 卡间不均衡度</td><td>降低端到端时延</td></tr>
-            <tr><td>共享专家外置</td><td>共享专家独立部署在专卡</td><td>优化 TPOT</td></tr>
-            <tr><td>Expert Parallel</td><td>专家分布在不同设备上</td><td>降时延、提吞吐</td></tr>
-            <tr><td>Data Parallel</td><td>批次切分 + 多设备并行</td><td>提高吞吐</td></tr>
-            <tr><td>Tensor Parallel</td><td>权重 / 激活按维度切分</td><td>降低单卡显存</td></tr>
-          </tbody>
-        </table>
+      <div class="admonition tip">
+        <div class="admonition-title">📚 阅读建议</div>
+        <p>新接触 MindIE-LLM 的开发者，建议按 <strong>① → ⑤</strong> 的顺序读：先理解并行 / 量化打底，
+        再看长序列 / 调度 / 加速等高阶特性。</p>
       </div>
 
-      <h3 id="cat-quant">② 量化特性 → <a href="quantization.html">量化专题</a></h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>特性</th><th>简介</th><th>主要价值</th></tr></thead>
-          <tbody>
-            <tr><td>离群值抑制</td><td>压制激活异常值，提升量化精度</td><td>减少精度损失</td></tr>
-            <tr><td>PD MIX 量化</td><td>Prefill / Decode 阶段使用不同量化方式</td><td>降显存</td></tr>
-            <tr><td>W8A8 量化</td><td>权重 + 激活统一 int8</td><td>降显存、提吞吐</td></tr>
-            <tr><td>W4A8 混合量化</td><td>权重分级 4 / 8 bit，激活 8 bit</td><td>极致压缩</td></tr>
-            <tr><td>W8A16 量化</td><td>权重 8 bit、激活 16 bit</td><td>精度优先</td></tr>
-            <tr><td>Attention 量化</td><td>QKV 统一 8 bit，Attention 加速</td><td>降显存、提吞吐</td></tr>
-            <tr><td>FA3 量化</td><td>K 的 non-Rope 部分 8 bit、Rope 部分保留</td><td>降显存、提吞吐</td></tr>
-            <tr><td>KV Cache Int8</td><td>KV Cache 量化为 int8</td><td>降显存</td></tr>
-            <tr><td>W8A8SC 稀疏量化</td><td>稀疏化 + 低位宽 + 压缩存储</td><td>高稀疏率、提吞吐</td></tr>
-            <tr><td>W16A16SC 量化</td><td>浮点稀疏量化</td><td>免反量化、提吞吐</td></tr>
-          </tbody>
-        </table>
+      <h2 id="cat-basic">① 基础并行（8）</h2>
+      <div class="card-grid">
+        <a class="card" href="features/multi-lora.html">
+          <span class="card-tag">基础</span>
+          <div class="card-title">Multi-LoRA</div>
+          <div class="card-desc">同基础模型托管多个 LoRA Adapter，请求级动态切换。</div>
+        </a>
+        <a class="card" href="features/moe.html">
+          <span class="card-tag">基础</span>
+          <div class="card-title">MoE 模型支持</div>
+          <div class="card-desc">稀疏激活专家网络，万亿参数能力。</div>
+        </a>
+        <a class="card" href="features/mla.html">
+          <span class="card-tag">基础</span>
+          <div class="card-title">MLA</div>
+          <div class="card-desc">低秩 KV 联合压缩，KV 体积 ↓ 96.5%。</div>
+        </a>
+        <a class="card" href="features/expert-load-balance.html">
+          <span class="card-tag">基础</span>
+          <div class="card-title">EPLB 负载均衡</div>
+          <div class="card-desc">冗余专家 + 路由再平衡，降低卡间不均衡度。</div>
+        </a>
+        <a class="card" href="features/shared-expert.html">
+          <span class="card-tag">基础</span>
+          <div class="card-title">共享专家外置</div>
+          <div class="card-desc">把共享专家独立部署到专卡，TPOT ↓。</div>
+        </a>
+        <a class="card" href="features/expert-parallel.html">
+          <span class="card-tag">基础</span>
+          <div class="card-title">Expert Parallel</div>
+          <div class="card-desc">专家分布到不同设备并行计算。</div>
+        </a>
+        <a class="card" href="features/data-parallel.html">
+          <span class="card-tag">基础</span>
+          <div class="card-title">Data Parallel</div>
+          <div class="card-desc">实例级 / 模块级横向扩并发。</div>
+        </a>
+        <a class="card" href="features/tensor-parallel.html">
+          <span class="card-tag">基础</span>
+          <div class="card-title">Tensor Parallel</div>
+          <div class="card-desc">权重 / 激活按维度切到多卡。</div>
+        </a>
       </div>
 
-      <h3 id="cat-long">③ 长序列特性 → <a href="parallelism.html#cp">CP / SP</a></h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>特性</th><th>简介</th><th>主要价值</th></tr></thead>
-          <tbody>
-            <tr><td>Context Parallel</td><td>上下文维度切分到多设备并行</td><td>降显存、降首 token 时延</td></tr>
-            <tr><td>Sequence Parallel</td><td>KV Cache 按序列切分，每卡持不同 KV</td><td>支持长序列</td></tr>
-          </tbody>
-        </table>
+      <h2 id="cat-quant">② 量化（10） → <a href="quantization.html">量化专题</a></h2>
+      <div class="card-grid">
+        <a class="card" href="features/anti-outlier.html">
+          <span class="card-tag">量化</span>
+          <div class="card-title">离群值抑制（Anti-Outlier）</div>
+          <div class="card-desc">SmoothQuant 风格预处理，激活更易量化。</div>
+        </a>
+        <a class="card" href="features/pdmix-quant.html">
+          <span class="card-tag">量化</span>
+          <div class="card-title">PD MIX 量化</div>
+          <div class="card-desc">P 阶段 per-token、D 阶段 per-tensor。</div>
+        </a>
+        <a class="card" href="features/w8a8.html">
+          <span class="card-tag">量化</span>
+          <div class="card-title">W8A8</div>
+          <div class="card-desc">权重 + 激活统一 int8，主流方案。</div>
+        </a>
+        <a class="card" href="features/w4a8.html">
+          <span class="card-tag">量化</span>
+          <div class="card-title">W4A8 混合</div>
+          <div class="card-desc">分层量化：路由专家 4 bit、关键层 8 bit。</div>
+        </a>
+        <a class="card" href="features/w8a16.html">
+          <span class="card-tag">量化</span>
+          <div class="card-title">W8A16</div>
+          <div class="card-desc">仅权重 int8，精度优先。</div>
+        </a>
+        <a class="card" href="features/attention-quant.html">
+          <span class="card-tag">量化</span>
+          <div class="card-title">Attention 量化</div>
+          <div class="card-desc">QKV 统一 8 bit，KV 显存 ↓ 50%。</div>
+        </a>
+        <a class="card" href="features/fa3-quant.html">
+          <span class="card-tag">量化</span>
+          <div class="card-title">FA3 量化</div>
+          <div class="card-desc">K 的非 RoPE 段 8 bit、RoPE 保 fp16。</div>
+        </a>
+        <a class="card" href="features/kv-int8.html">
+          <span class="card-tag">量化</span>
+          <div class="card-title">KV Cache Int8</div>
+          <div class="card-desc">仅 KV 量化，长序列救命稻草。</div>
+        </a>
+        <a class="card" href="features/w8a8sc.html">
+          <span class="card-tag">量化</span>
+          <div class="card-title">W8A8SC 稀疏</div>
+          <div class="card-desc">稀疏 + INT8 + 压缩存储三合一。</div>
+        </a>
+        <a class="card" href="features/w16a16sc.html">
+          <span class="card-tag">量化</span>
+          <div class="card-title">W16A16SC 浮点稀疏</div>
+          <div class="card-desc">FP16 稀疏压缩，免反量化算子。</div>
+        </a>
       </div>
 
-      <h3 id="cat-sched">④ 调度特性</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>特性</th><th>简介</th><th>主要价值</th></tr></thead>
-          <tbody>
-            <tr><td>异步调度</td><td>用 NPU 计算时间掩盖 host 数据准备 / 回收时间</td><td>降低时延</td></tr>
-            <tr><td>SplitFuse</td><td>长 prompt 切块 + 与 decode 同 step 执行</td><td>提吞吐、降时延</td></tr>
-            <tr><td>SLO 调度优化</td><td>基于时延预测保证 SLO 同时最大化吞吐</td><td>稳态吞吐</td></tr>
-          </tbody>
-        </table>
+      <h2 id="cat-long">③ 长序列（2）</h2>
+      <div class="card-grid">
+        <a class="card" href="features/context-parallel.html">
+          <span class="card-tag">长序列</span>
+          <div class="card-title">Context Parallel</div>
+          <div class="card-desc">序列维度切分，长 prompt prefill 加速。</div>
+        </a>
+        <a class="card" href="features/sequence-parallel.html">
+          <span class="card-tag">长序列</span>
+          <div class="card-title">Sequence Parallel</div>
+          <div class="card-desc">KV Cache 切分，长 decode 不爆显存。</div>
+        </a>
       </div>
 
-      <h3 id="cat-accel">⑤ 加速特性 → <a href="acceleration.html">加速专题</a></h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>特性</th><th>简介</th><th>主要价值</th></tr></thead>
-          <tbody>
-            <tr><td>Micro Batch</td><td>把大 batch 拆成小批次轮转执行</td><td>提吞吐</td></tr>
-            <tr><td>并行解码 / Lookahead</td><td>同步预测多 token 并校验</td><td>提吞吐</td></tr>
-            <tr><td>MTP</td><td>Multi-Token Prediction，单步多 token</td><td>提吞吐</td></tr>
-            <tr><td>Prefix Cache</td><td>命中前缀复用 KV，跳过 prefill</td><td>降首 token 时延</td></tr>
-            <tr><td>KV Cache 池化</td><td>DRAM/SSD 作为二级缓存</td><td>提高命中率</td></tr>
-          </tbody>
-        </table>
+      <h2 id="cat-sched">④ 调度（3）</h2>
+      <div class="card-grid">
+        <a class="card" href="features/async-scheduling.html">
+          <span class="card-tag">调度</span>
+          <div class="card-title">异步调度</div>
+          <div class="card-desc">CPU/NPU 双流，掩盖 host 时间。</div>
+        </a>
+        <a class="card" href="features/splitfuse.html">
+          <span class="card-tag">调度</span>
+          <div class="card-title">SplitFuse / Chunked Prefill</div>
+          <div class="card-desc">长 prompt 切块 + 与 decode 同 step。</div>
+        </a>
+        <a class="card" href="features/slo-scheduling.html">
+          <span class="card-tag">调度</span>
+          <div class="card-title">SLO 调度优化</div>
+          <div class="card-desc">LLF + 动态 BatchSize，SLO 友好。</div>
+        </a>
       </div>
 
-      <h3 id="cat-inter">⑥ 交互特性</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>特性</th><th>简介</th><th>主要价值</th></tr></thead>
-          <tbody>
-            <tr><td>Function Call</td><td>支持工具调用</td><td>扩展应用能力</td></tr>
-            <tr><td>思考解析</td><td>结构化解析推理过程与最终输出</td><td>复杂场景推理友好</td></tr>
-            <tr><td>结构化输出</td><td>JSON / 正则约束输出</td><td>稳定下游解析</td></tr>
-            <tr><td>思考预算</td><td>限制 reasoning token 数量</td><td>成本可控</td></tr>
-          </tbody>
-        </table>
+      <h2 id="cat-accel">⑤ 加速（5）</h2>
+      <div class="card-grid">
+        <a class="card" href="features/micro-batch.html">
+          <span class="card-tag">加速</span>
+          <div class="card-title">Micro Batch</div>
+          <div class="card-desc">双流计算 / 通信重叠，掩盖率 70%+。</div>
+        </a>
+        <a class="card" href="features/speculative-decoding.html">
+          <span class="card-tag">加速</span>
+          <div class="card-title">投机解码 / Lookahead</div>
+          <div class="card-desc">猜 N 验 1，访存受限场景吞吐神器。</div>
+        </a>
+        <a class="card" href="features/mtp.html">
+          <span class="card-tag">加速</span>
+          <div class="card-title">MTP</div>
+          <div class="card-desc">DeepSeek 自带 MTP head 单步多 token。</div>
+        </a>
+        <a class="card" href="features/prefix-cache.html">
+          <span class="card-tag">加速</span>
+          <div class="card-title">Prefix Cache</div>
+          <div class="card-desc">前缀哈希复用 KV，跳过整段 prefill。</div>
+        </a>
+        <a class="card" href="features/kv-cache-pool.html">
+          <span class="card-tag">加速</span>
+          <div class="card-title">KV Cache 池化</div>
+          <div class="card-desc">DRAM 二级缓存，把命中率推到极致。</div>
+        </a>
       </div>
 
-      <h3 id="cat-other">⑦ 其他</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>特性</th><th>简介</th><th>主要价值</th></tr></thead>
-          <tbody>
-            <tr><td>权重离线切分</td><td>提前切分权重至 tmpfs</td><td>缩短加载时间</td></tr>
-          </tbody>
-        </table>
+      <h2 id="cat-inter">⑥ 交互与其他（4）</h2>
+      <div class="card-grid">
+        <a class="card" href="features/function-call.html">
+          <span class="card-tag">交互</span>
+          <div class="card-title">Function Call</div>
+          <div class="card-desc">调用外部工具 / API，agent 化必备。</div>
+        </a>
+        <a class="card" href="features/reasoning.html">
+          <span class="card-tag">交互</span>
+          <div class="card-title">思考解析与预算</div>
+          <div class="card-desc">拆 reasoning / content；限 thinking 长度。</div>
+        </a>
+        <a class="card" href="features/structured-output.html">
+          <span class="card-tag">交互</span>
+          <div class="card-title">结构化输出</div>
+          <div class="card-desc">JSON Schema 强约束，输出 100% 合法。</div>
+        </a>
+        <a class="card" href="features/offline-weight.html">
+          <span class="card-tag">其他</span>
+          <div class="card-title">权重离线切分</div>
+          <div class="card-desc">tmpfs 预切，冷启动从 min 级降到秒级。</div>
+        </a>
       </div>
 
       <h2 id="matrix">兼容性矩阵（节选）</h2>
@@ -269,11 +360,6 @@
           </tbody>
         </table>
       </div>
-      <div class="admonition note">
-        <div class="admonition-title">📌 DeepSeek 实战建议</div>
-        <p>短上下文（&lt;16k）通常不需要 CP / SP；长上下文（128k）建议关闭 MTP。
-        最大兼容组合为 CP + SP + Prefix Cache + KV 池化 + MTP + 异步调度 + FA3 量化。</p>
-      </div>
 
       <h3 id="m-qwen">Qwen 系列</h3>
       <div class="table-wrap">
@@ -292,11 +378,6 @@
             <tr><td>Prefix Cache</td>  <td class="cell-no">❌</td><td class="cell-yes">✅</td><td class="cell-yes">✅</td><td class="cell-yes">✅</td><td class="cell-yes">✅</td><td class="cell-no">❌</td><td class="cell-yes">✅</td><td class="cell-no">❌</td><td class="cell-yes">✅</td><td class="cell-yes">✅</td></tr>
           </tbody>
         </table>
-      </div>
-      <div class="admonition warn">
-        <div class="admonition-title">⚠ Multi-LoRA 与量化互斥</div>
-        <p>当前 Qwen 模型上 Multi-LoRA 与多数量化特性（W8A8 / W8A16 / KV Int8 / W8A8SC 等）<strong>不兼容</strong>。
-        生产部署需在「多业务热切」与「极致压缩」之间二选一。</p>
       </div>
 
       <h2 id="how-to">特性如何启用</h2>

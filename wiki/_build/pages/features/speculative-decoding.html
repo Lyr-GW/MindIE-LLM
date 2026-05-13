@@ -1,0 +1,89 @@
+---
+title: 投机解码 / Lookahead
+---
+      <h1>并行解码 — Speculative Decoding / Lookahead / Memory Decoding</h1>
+      <p class="lead">用「先猜 N 个 token、再用主模型一次性校验」的方式，把多步 decode
+      压缩成一次 forward。本特性是<strong>访存受限场景</strong>的吞吐利器。</p>
+
+      <h2 id="why">动机</h2>
+      <p>Decode 阶段每步只算 1 个 token，每步都要把整个权重从 HBM 读一遍 — 计算资源大量空闲、
+      访存带宽 100% 占用。如果一次 forward 同时验证 N 个候选 token，就能在<strong>同样访存</strong>
+      下输出 N 个 token。</p>
+
+      <h2 id="algos">两种算法（互斥）</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>算法</th><th>候选 token 来源</th><th>适用场景</th></tr></thead>
+          <tbody>
+            <tr><td><strong>memory_decoding</strong></td><td>前缀树（Trie）缓存历史输入输出</td><td>代码生成 / 检索类（重复 pattern 多）</td></tr>
+            <tr><td><strong>lookahead (la)</strong></td><td>Jacobi 迭代 + prompt + 输出结果</td><td>文本生成 / 对话 / 多样化问答</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="memory">memory_decoding</h2>
+      <pre data-lang="json"><code>"speculationGamma": 16,
+"ModelConfig": [{
+  "plugin_params":"{\"plugin_type\":\"memory_decoding\",\
+                    \"decoding_length\":16,\"dynamic_algo\":true}",
+  "modelName": "llama3-70b",
+  ...
+}]</code></pre>
+      <ul>
+        <li><code>decoding_length</code> ∈ [1,16]：候选最大长度。</li>
+        <li><code>dynamic_algo=true</code>：根据上下文自适应候选长度。</li>
+        <li><code>speculationGamma</code> ≥ <code>decoding_length</code>。</li>
+        <li>当 <code>dynamic_algo=true</code>，<code>maxIterTimes ≥ 期望输出长度 + speculationGamma</code>。</li>
+      </ul>
+
+      <h2 id="la">lookahead (la)</h2>
+      <pre data-lang="json"><code>"speculationGamma": 30,
+"ModelConfig": [{
+  "plugin_params":"{\"plugin_type\":\"la\",\"level\":4,\"window\":5,\"guess_set_size\":5}",
+  "modelName": "Qwen2.5-7B-Instruct",
+  ...
+}]</code></pre>
+      <p>Lookahead 用 Jacobi 迭代直接从主模型自身的 N-gram 缓存生成候选；不需要额外 draft 模型。</p>
+      <ul>
+        <li><code>level (N) / window (W) / guess_set_size (G)</code> ∈ [1,16]，默认 4 / 5 / 5。</li>
+        <li><code>speculationGamma ≥ (N-1) × (W+G)</code>，建议取等。</li>
+      </ul>
+
+      <h2 id="when">何时收益最大</h2>
+      <ol>
+        <li>并发较低（内存带宽受限）；</li>
+        <li>有较长输入提供候选 token 来源；</li>
+        <li>有较长输出（推理步数足够多）；</li>
+        <li>贪婪 / 低温度采样（验证通过率高）。</li>
+      </ol>
+
+      <h2 id="impl">在 Python 框架中的实现</h2>
+      <p>位于 <a href="../python-runtime.html#plugins">mindie_llm/text_generator/plugins/</a>：</p>
+      <ul>
+        <li><code>plugins/la/</code>：lookahead 实现。</li>
+        <li><code>plugins/memory_decoding/</code>：memory decoding 实现。</li>
+      </ul>
+      <p>调度器侧把每个 step 的 <code>numBatchedTokens</code> 设为 1 + N，
+      模型 forward 一次同时算 N+1 个 token；后处理层根据校验通过的 token 数推进序列。</p>
+
+      <h2 id="limit">已知限制</h2>
+      <ul>
+        <li>Atlas 800I A2、Atlas 300I Duo 支持。</li>
+        <li>LLaMA3、Qwen2 / 2.5、Qwen3-14B / 32B 支持。</li>
+        <li>支持 W8A8 与稀疏量化；其它量化暂不支持。</li>
+        <li>不能与 PD 分离、<a href="multi-lora.html">Multi-LoRA</a>、
+          <a href="splitfuse.html">SplitFuse</a>、长序列、<a href="mtp.html">MTP</a>、
+          <a href="async-scheduling.html">异步调度</a>、多机推理同开。</li>
+        <li>不支持 <code>n / best_of / use_beam_search / logprobs / top_logprobs</code> 等。</li>
+        <li>暂不支持流式推理。</li>
+        <li>惩罚后处理仅支持 repetition_penalty。</li>
+        <li>暂不支持开启 HealthCheck。</li>
+        <li>la 与 memory_decoding 不可同时使能。</li>
+      </ul>
+
+      <h2 id="ref">参考</h2>
+      <ul>
+        <li>本仓库官方文档：<code>docs/zh/user_guide/feature/speculative_decoding.md</code></li>
+        <li>论文：<em>Speculative Decoding</em>、<em>Lookahead Decoding</em>（UCSD）</li>
+        <li>类似机制（DeepSeek 自带）：<a href="mtp.html">MTP</a></li>
+      </ul>

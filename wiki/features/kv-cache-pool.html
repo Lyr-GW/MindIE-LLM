@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KV Cache 池化 · MindIE-LLM Wiki</title>
+<meta name="description" content="KV Cache 池化 — MindIE-LLM Wiki">
+<link rel="icon" href="../assets/img/favicon.ico">
+<link rel="stylesheet" href="../assets/css/wiki.css">
+</head>
+<body>
+<header class="site-header">
+  <a class="brand" href="../index.html">
+    <img src="../assets/img/ascend-logo.png" alt="Ascend">
+    <span>MindIE-<span class="accent">LLM</span> Wiki</span>
+  </a>
+  <div class="header-spacer"></div>
+  <nav class="header-links">
+    <a href="https://github.com/Lyr-GW/MindIE-LLM" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://gitcode.com/Ascend/MindIE-LLM" target="_blank" rel="noopener">GitCode</a>
+    <a href="https://www.hiascend.com/" target="_blank" rel="noopener">昇腾社区</a>
+  </nav>
+  <button class="theme-toggle" type="button">☾ 暗色</button>
+  <button class="menu-toggle" type="button" aria-label="菜单">☰</button>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <input class="sidebar-filter" placeholder="筛选目录…" aria-label="筛选目录">
+    <nav>
+      <div class="nav-group">
+        <div class="nav-group-title">入门</div>
+        <ul>
+          <li><a href="../index.html">首页</a></li>
+          <li><a href="../introduction.html">项目简介</a></li>
+          <li><a href="../quick-start.html">快速入门</a></li>
+          <li><a href="../installation.html">安装与编译</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">架构与内核</div>
+        <ul>
+          <li><a href="../architecture.html">架构总览</a></li>
+          <li><a href="../directory.html">目录结构</a></li>
+          <li><a href="../server-api.html">服务端与 API</a></li>
+          <li><a href="../cpp-engine.html">C++ 引擎内核</a></li>
+          <li><a href="../scheduler.html">调度器</a></li>
+          <li><a href="../block-manager.html">KV Cache &amp; Block</a></li>
+          <li><a href="../python-runtime.html">Python 推理框架</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">特性</div>
+        <ul>
+          <li><a href="../features.html">特性总览（索引）</a></li>
+          <li><a href="../quantization.html">量化特性</a></li>
+          <li><a href="../parallelism.html">并行策略</a></li>
+          <li><a href="../acceleration.html">加速特性</a></li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-0" aria-expanded="false"><span>基础并行</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-0">
+          <li><a href="../features/multi-lora.html">Multi-LoRA</a></li>
+          <li><a href="../features/moe.html">MoE</a></li>
+          <li><a href="../features/mla.html">MLA</a></li>
+          <li><a href="../features/expert-load-balance.html">EPLB 负载均衡</a></li>
+          <li><a href="../features/shared-expert.html">共享专家外置</a></li>
+          <li><a href="../features/expert-parallel.html">Expert Parallel</a></li>
+          <li><a href="../features/data-parallel.html">Data Parallel</a></li>
+          <li><a href="../features/tensor-parallel.html">Tensor Parallel</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-1" aria-expanded="false"><span>量化</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-1">
+          <li><a href="../features/anti-outlier.html">离群值抑制</a></li>
+          <li><a href="../features/pdmix-quant.html">PD MIX 量化</a></li>
+          <li><a href="../features/w8a8.html">W8A8</a></li>
+          <li><a href="../features/w4a8.html">W4A8 混合</a></li>
+          <li><a href="../features/w8a16.html">W8A16</a></li>
+          <li><a href="../features/attention-quant.html">Attention 量化</a></li>
+          <li><a href="../features/fa3-quant.html">FA3 量化</a></li>
+          <li><a href="../features/kv-int8.html">KV Cache Int8</a></li>
+          <li><a href="../features/w8a8sc.html">W8A8SC 稀疏</a></li>
+          <li><a href="../features/w16a16sc.html">W16A16SC 稀疏</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-2" aria-expanded="false"><span>长序列</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-2">
+          <li><a href="../features/context-parallel.html">Context Parallel</a></li>
+          <li><a href="../features/sequence-parallel.html">Sequence Parallel</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-3" aria-expanded="false"><span>调度</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-3">
+          <li><a href="../features/async-scheduling.html">异步调度</a></li>
+          <li><a href="../features/splitfuse.html">SplitFuse</a></li>
+          <li><a href="../features/slo-scheduling.html">SLO 调度优化</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-4" aria-expanded="false"><span>加速</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-4">
+          <li><a href="../features/micro-batch.html">Micro Batch</a></li>
+          <li><a href="../features/speculative-decoding.html">投机解码 / Lookahead</a></li>
+          <li><a href="../features/mtp.html">MTP</a></li>
+          <li><a href="../features/prefix-cache.html">Prefix Cache</a></li>
+          <li><a href="../features/kv-cache-pool.html">KV Cache 池化</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-5" aria-expanded="false"><span>交互与其他</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-5">
+          <li><a href="../features/function-call.html">Function Call</a></li>
+          <li><a href="../features/reasoning.html">思考解析与预算</a></li>
+          <li><a href="../features/structured-output.html">结构化输出</a></li>
+          <li><a href="../features/offline-weight.html">权重离线切分</a></li>
+          </ul>
+        </li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">开发</div>
+        <ul>
+          <li><a href="../development.html">开发与贡献</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">参考</div>
+        <ul>
+          <li><a href="../faq.html">常见问题</a></li>
+          <li><a href="../references.html">参考资料</a></li>
+        </ul>
+      </div>
+    </nav>
+  </aside>
+
+  <main class="content">
+    <nav class="breadcrumb">
+      <a href="../index.html">首页</a><span class="sep">›</span><a href="../features.html">特性</a><span class="sep">›</span><span>KV Cache 池化</span>
+    </nav>
+    <article>
+      <h1>KV Cache 池化</h1>
+      <p class="lead">把 NPU 显存之外的 <strong>DRAM</strong>（甚至 SSD）也纳入 prefix cache 池子，
+      突破单卡显存的容量限制，把命中率推到极致。</p>
+
+      <h2 id="why">为什么需要二级缓存</h2>
+      <p>NPU 显存就那么多 — 一旦填满，<a href="../block-manager.html#lru">LRU Evictor</a>
+      就要驱逐冷的前缀块；下次同样的前缀来了又得重新算。</p>
+      <p>KV Cache 池化把驱逐目标从「直接释放」改为「<strong>swap 到 DRAM</strong>」，下次命中时再
+      swap 回 NPU。容量从 GB 量级跳到 TB 量级。</p>
+      <pre class="ascii-art">
+   层级    介质         容量      访问开销     是否参与命中
+   ────────────────────────────────────────────────────────
+   L1     NPU HBM     ~ 100 GB   ns 级       立刻命中
+   L2     CPU DRAM    ~ TB       μs 级       命中后 swap-in
+   L3     SSD（可选）  ~ 数十 TB   ms 级       命中后两级 swap
+</pre>
+
+      <h2 id="impl">在 MindIE-LLM 中的实现</h2>
+      <p>由 <a href="../block-manager.html#cpu-npu">CpuNpuBlockAllocator</a> 实现两级管理：</p>
+      <ul>
+        <li>用同一个 BlockObjPool 服务 NPU + CPU 两侧；</li>
+        <li><code>blockId</code> 落在统一空间：&lt; <code>beginCpuBlockId_</code> 是 NPU、否则 CPU；</li>
+        <li>调度器在装 batch 时若发现命中的 prefix block 在 CPU，会一并下发
+          <code>blocksToSwapIn_</code> 列表，由 worker 端做异步 NPU↔CPU 拷贝。</li>
+      </ul>
+      <p>底层走 HCCL 单边通信池化后端，每条链路约 4 MB 显存，最大 512 条。多机场景下需相应下调
+      显存因子（默认 0.92，每下调 0.01 释放约 600 MB）。</p>
+
+      <h2 id="config">配置</h2>
+      <p>必须先开 <a href="prefix-cache.html">Prefix Cache</a>，再加上池化后端：</p>
+      <pre data-lang="json"><code>"BackendConfig": {
+  "kvPoolConfig": {
+    "backend":    "kv_pool_backend_name",
+    "configPath": "/path/to/your/config/file",
+    "asyncWrite": false        // true: 异步写，提高写入吞吐
+  },
+  "ModelDeployConfig": {
+    "ModelConfig": [{
+      "modelName": "dsr1",
+      "plugin_params": "{\"plugin_type\":\"prefix_cache\"}",
+      "models": {
+        "deepseekv2": {
+          "enable_mlapo_prefetch": true,
+          "kv_cache_options": { "enable_nz": true }
+        }
+      }
+    }]
+  }
+}</code></pre>
+      <p>启动前先拉起池化后端的 <strong>Master Service</strong>（参考 <code>mempool.md</code>）。</p>
+
+      <h2 id="benefit">收益</h2>
+      <ul>
+        <li>多轮对话场景，命中率从 ~30% 提升到 70%+ 不罕见。</li>
+        <li>TTFT 在长 prefix 命中下降低 60–90%。</li>
+        <li>注意：CPU↔NPU 带宽是关键瓶颈。带宽不够时收益会打折。</li>
+      </ul>
+
+      <h2 id="limit">已知限制</h2>
+      <ul>
+        <li>Atlas 800I A2、Atlas 300I Duo 支持。</li>
+        <li>其它限制与 <a href="prefix-cache.html">Prefix Cache</a> 一致。</li>
+        <li>当前仅支持 DRAM 池化（与 Prefix Cache 叠加成两级缓存）。</li>
+        <li>必须同时开 Prefix Cache。</li>
+        <li>额外占片上内存：每条 HCCL 链路 4 MB，最多 512 条。</li>
+        <li>构建池子建议总卡数 ≤ 512，避免 HCCL 频繁断链 / 重连。</li>
+      </ul>
+
+      <h2 id="tune">调优建议</h2>
+      <ul>
+        <li>会扩容场景：按最大显存因子下调 0.04 预留 HCCL 空间，避免动态加节点时 OOM。</li>
+        <li>不会扩容：按公式 <code>(总卡数 - 1) × 4 MB</code> 计算 HCCL 占用，按需下调显存因子。</li>
+        <li>显存因子下调一档 → 上下文长度需相应缩短，权衡。</li>
+      </ul>
+
+      <h2 id="ref">参考</h2>
+      <ul>
+        <li>本仓库官方文档：<code>docs/zh/user_guide/feature/kv_cache_pool.md</code> +
+          <code>docs/zh/user_guide/feature/mempool.md</code></li>
+        <li>实现详解：<a href="../block-manager.html#cpu-npu">Block Manager → CpuNpuBlockAllocator</a></li>
+      </ul>
+
+    </article>
+
+    <footer class="page-footer">
+      <a class="pager-prev" href="prefix-cache.html">Prefix Cache</a>
+      <a class="pager-next" href="function-call.html">Function Call</a>
+      <div class="copyright">
+        © 2025–2026 MindIE-LLM Wiki · 内容基于源码归纳，与官方文档可能存在表述差异
+      </div>
+    </footer>
+  </main>
+
+  <aside class="toc"></aside>
+</div>
+
+<script src="../assets/js/wiki.js"></script>
+</body>
+</html>
