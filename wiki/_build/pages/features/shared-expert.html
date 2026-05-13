@@ -1,0 +1,87 @@
+---
+title: 共享专家外置
+---
+      <h1>共享专家外置 / 内置 / 混置</h1>
+      <p class="lead">MoE 模型常有「共享专家」（每个 token 都过）。MindIE-LLM 提供三种部署方式
+      把它放在不同位置，平衡通信、算力与负载均衡效果。</p>
+
+      <h2 id="three">三种部署形态</h2>
+
+      <h3 id="external">共享专家外置（推荐）</h3>
+      <p>把共享专家独立部署到<strong>专门的前几张 NPU</strong>，与路由专家 / 冗余专家分离。</p>
+      <pre data-lang="text"><code>计算流程：dispatch → 同时计算共享专家 + 路由专家 → combine</code></pre>
+      <ul>
+        <li>共享专家所在 NPU 不参与 AllToAll，专心做密集计算。</li>
+        <li>路由专家所在 NPU 专心做稀疏路由，负载均衡更纯粹。</li>
+        <li>整体 TPOT 显著改善。</li>
+      </ul>
+
+      <h3 id="internal">共享专家内置</h3>
+      <p>共享专家与路由 / 冗余专家共住一张 NPU。</p>
+      <pre data-lang="text"><code>计算流程：共享专家 matmul → dispatch → 路由专家 → combine → 共享 + 路由结果相加</code></pre>
+      <p>无额外卡需求，但共享专家会与路由专家争抢算力，对 EPLB 干扰大。</p>
+
+      <h3 id="mix">共享专家混置</h3>
+      <p>把共享专家<strong>当作普通路由专家</strong>纳入负载均衡考量。</p>
+      <pre data-lang="text"><code>计算流程：dispatch → 同时计算共享专家 + 路由专家 → combine</code></pre>
+      <ul>
+        <li>EPLB 算法把它视为一个高频专家，自动复制到多卡。</li>
+        <li>对 Atlas 800I A2 / A3 都支持。</li>
+      </ul>
+
+      <h2 id="diff">三者对比</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th></th><th>外置</th><th>内置</th><th>混置</th></tr></thead>
+          <tbody>
+            <tr><td>额外卡</td><td>需要</td><td>不需要</td><td>不需要</td></tr>
+            <tr><td>是否参与 EPLB</td><td>否</td><td>否</td><td>是</td></tr>
+            <tr><td>支持平台</td><td>800I A3 144 卡</td><td>所有</td><td>800I A2 / A3</td></tr>
+            <tr><td>配合 EPLB</td><td>性能更优</td><td>—</td><td>性能更优</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="enable">如何开启</h2>
+
+      <h3 id="rec">（推荐）外置 + EPLB</h3>
+      <p>先按 <a href="expert-load-balance.html">EPLB</a> 步骤生成 <code>expert_map.json</code>。</p>
+      <pre data-lang="json"><code>"models": {
+  "deepseekv2": {
+    "ep_level": 2,
+    "eplb": {
+      "level": 1,
+      "expert_map_file": "/path/to/expert_map.json"
+    }
+  }
+}</code></pre>
+
+      <h3 id="ext-only">外置（仅 800I A3 144 卡）</h3>
+      <pre data-lang="json"><code>"models": {
+  "deepseekv2": {
+    "ep_level": 2,
+    "num_dangling_shared_experts": 32   // 多少个共享专家被外置
+  }
+}</code></pre>
+
+      <h3 id="mix-only">仅混置</h3>
+      <pre data-lang="json"><code>"models": {
+  "deepseekv2": {
+    "mix_shared_routing": true
+  }
+}</code></pre>
+
+      <h2 id="limit">已知限制</h2>
+      <ul>
+        <li>仅支持 DeepSeek-V3 / R1。</li>
+        <li>「外置」仅支持 Atlas 800I A3 超节点 144 卡场景。</li>
+        <li>「混置」同时支持 800I A2 / A3。</li>
+        <li>W4A8 + 共享专家外置时，需要使用<strong>共享专家本身也是 W4A8</strong> 的特殊权重。</li>
+      </ul>
+
+      <h2 id="ref">参考</h2>
+      <ul>
+        <li>本仓库官方文档：<code>docs/zh/user_guide/feature/mix_shared_routing.md</code></li>
+        <li>相关：<a href="expert-parallel.html">EP</a>、<a href="expert-load-balance.html">EPLB</a>、
+        <a href="moe.html">MoE</a></li>
+      </ul>

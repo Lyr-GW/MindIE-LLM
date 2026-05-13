@@ -1,0 +1,78 @@
+---
+title: 异步调度
+---
+      <h1>异步调度</h1>
+      <p class="lead">让 CPU 上的<strong>请求调度 / 数据准备 / 结果回收</strong>与 NPU 上的
+      <strong>模型推理</strong>并行执行。一个简单的多线程改造，可在大 batch、长输出场景下
+      把 CPU 时间「藏到」NPU 计算之后，吞吐显著提升。</p>
+
+      <h2 id="problem">问题：CPU/NPU 串行</h2>
+      <p>同步推理流水：</p>
+      <pre class="ascii-art">
+   时间 →
+   CPU:  [调度 准备] ─────────── [回收 响应] [调度 准备] ─── ...
+   NPU:               [推理 + 采样]                          [推理 + 采样]
+              ↑           ↑                ↑
+            CPU 等 NPU    NPU 算           NPU 等 CPU
+</pre>
+      <p>每一轮中 CPU、NPU 都有空闲段。Batch 越大、输出越长，<strong>调度准备 / 结果回收</strong>
+      的绝对时间越长，浪费越严重。</p>
+
+      <h2 id="async">异步思路</h2>
+      <pre class="ascii-art">
+   时间 →
+   CPU:  [调度 N+0] [回收 N-1] [调度 N+1] [回收 N+0] [调度 N+2] [回收 N+1] ...
+   NPU:           [推理 N+0]            [推理 N+1]             [推理 N+2]
+</pre>
+      <ul>
+        <li><strong>双 buffer + 多线程</strong>：当 NPU 在算 N，CPU 已经在为 N+1 准备数据，
+          同时为 N-1 做后处理。</li>
+        <li><strong>调度领先 NPU 一轮</strong>：通过 <code>maxScheduledBatch_ = 2</code>
+          实现「异步单发」。</li>
+        <li><strong>EOS 重算代价</strong>：已进入 EOS 状态的请求会被多算 1 轮，
+          浪费 NPU 显存和算力的小额成本。</li>
+      </ul>
+
+      <h2 id="enable">如何开启</h2>
+      <pre data-lang="bash"><code># 1. 设置环境变量（D 节点开启）
+export MINDIE_ASYNC_SCHEDULING_ENABLE=1
+
+# 2. 启动服务
+mindie_llm_server</code></pre>
+      <div class="admonition note">
+        <div class="admonition-title">📌 PD 分离</div>
+        <p>仅在 D 节点开启异步调度；P 节点不需要。</p>
+      </div>
+
+      <h2 id="impl">在调度器中的体现</h2>
+      <p><span class="path">src/scheduler/scheduler.h</span> 中：</p>
+      <pre data-lang="cpp"><code>// 调度实际下发的批次：同步=1，异步（异步单发）=2
+size_t maxScheduledBatch_{1};</code></pre>
+      <p>异步打开后，调度循环允许提前计划下一轮 batch；执行器线程在 NPU 完成当前轮后立即拉走预备好的下一轮。</p>
+
+      <h2 id="when">什么时候收益最大</h2>
+      <ul>
+        <li><strong>大 maxBatchSize</strong>（≥ 64）：CPU 端处理量随 batch 线性涨。</li>
+        <li><strong>长输出</strong>：每轮 decode 时间相对短，CPU 端反而变成瓶颈。</li>
+        <li><strong>多 token 后处理（结构化输出 / Function Call）</strong>：CPU 计算密集时收益尤其大。</li>
+      </ul>
+
+      <h2 id="limit">已知限制</h2>
+      <ul>
+        <li>支持 PD 混部、PD 分离场景。</li>
+        <li>不能与 <a href="speculative-decoding.html">Lookahead</a>、<strong>Memory Decoding</strong>
+          同时开启。</li>
+        <li>暂不支持 <code>n</code>、<code>best_of</code>、<code>use_beam_search</code>
+          等多序列后处理参数。</li>
+      </ul>
+
+      <h2 id="benefit">收益</h2>
+      <ul>
+        <li>典型场景吞吐 +10–25%。</li>
+        <li>对小 batch / 短输出收益有限，甚至可能因 EOS 重算反而降低。</li>
+      </ul>
+
+      <h2 id="ref">参考</h2>
+      <ul>
+        <li>本仓库官方文档：<code>docs/zh/user_guide/feature/asynchronous_scheduling.md</code></li>
+      </ul>

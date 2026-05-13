@@ -1,0 +1,66 @@
+---
+title: MLA（Multi-head Latent Attention）
+---
+      <h1>MLA — Multi-head Latent Attention</h1>
+      <p class="lead">DeepSeek 系列首推的注意力变体：用<strong>低秩 KV 联合压缩</strong>
+      消除 KV Cache 瓶颈。MindIE-LLM 支持 <em>单 Cache MLA</em> —
+      把 head 维度压到 1，访存极致友好。</p>
+
+      <h2 id="why">为什么需要 MLA</h2>
+      <p>传统 MHA 的 KV Cache 大小：</p>
+      <pre data-lang="text"><code>kv_cache_size = 2 (K, V) × n_heads × head_dim × seq_len × 2 bytes(fp16)</code></pre>
+      <p>对一个 128k 上下文的 70B 模型，单序列 KV ~30 GB。带宽和容量都吃不消。</p>
+      <p>MLA 做了关键观察：在 inference 阶段我们只关心 K 和 V 在计算 attention 时的<strong>线性投影</strong>，
+      而不是它们各自的全维度。它把 K、V <em>共同</em>压缩成一个低秩 latent <code>c_kv</code>，
+      存储 latent 而不是 K/V 本身。</p>
+
+      <h2 id="principle">原理（精简）</h2>
+      <pre data-lang="text"><code>// 训练 / 离线：
+W_DKV : 把 hidden 投到 latent 维 (低秩)
+W_UK  : 从 latent 解出 K
+W_UV  : 从 latent 解出 V
+
+// 推理时：
+c_kv = x @ W_DKV          // 低秩缩减，存到 KV Cache（小！）
+k    = c_kv @ W_UK
+v    = c_kv @ W_UV
+attn = softmax(q @ k^T) @ v</code></pre>
+      <p>对 RoPE 友好的位置编码段单独保留（见
+      <a href="fa3-quant.html">FA3 量化</a>），即所谓 <em>k_pe</em> 部分。</p>
+
+      <h2 id="single-cache">单 Cache MLA</h2>
+      <p>MindIE-LLM 实现的「单 Cache MLA」把多头折叠成等效 1 个 head：所有 head 共享同一份压缩 latent，
+      代价是把 head 内的差异交给后续矩阵乘吸收。带来：</p>
+      <ul>
+        <li><strong>显存</strong>：相比 MHA 压缩 96.5%（DeepSeek-V2 实测）；</li>
+        <li><strong>访存</strong>：单 cache、单连续矩阵，PagedAttention 取数极简单；</li>
+        <li><strong>算力</strong>：从 N×head 矩阵乘转化为 1×大矩阵，更易组 batch。</li>
+      </ul>
+
+      <h2 id="impl">在 MindIE-LLM 中的实现</h2>
+      <ul>
+        <li>Python 层：<span class="path">mindie_llm/runtime/layers/attention/</span> 中的 MLA 实现，
+        与 ATB Models 中的 DeepSeek-V2 适配层协作。</li>
+        <li>权重侧：标准 DeepSeek-V2/V3 权重即附带 MLA 投影矩阵，无需额外格式。</li>
+        <li>KV 池：对 MLA 的 c_kv 走专用 layout，在
+          <span class="path">src/block_manager/</span> 中通过 <code>blockSize</code> 自适应。</li>
+      </ul>
+
+      <h2 id="enable">如何开启</h2>
+      <p>没有开关 — 模型本身用 MLA（DeepSeek-V2/V3/R1、Qwen3 部分版本），
+      MindIE-LLM 自动走 MLA 路径。</p>
+      <pre data-lang="bash"><code>cd ${ATB_SPEED_HOME_PATH}
+bash examples/models/deepseekv2/run_pa.sh /weights/DeepSeek-V2-Chat</code></pre>
+
+      <h2 id="combine">叠加方案</h2>
+      <ul>
+        <li><a href="fa3-quant.html">FA3 量化</a>：MLA + KV 量化的最佳搭档。</li>
+        <li><a href="context-parallel.html">Context Parallel</a>：MLA 节省的显存让长上下文更可行。</li>
+        <li><a href="mtp.html">MTP</a>：DeepSeek-V3 自带 MTP head，与 MLA 共生。</li>
+      </ul>
+
+      <h2 id="ref">参考</h2>
+      <ul>
+        <li>本仓库官方文档：<code>docs/zh/user_guide/feature/mla.md</code></li>
+        <li>论文：DeepSeek-V2 / V3 技术报告</li>
+      </ul>

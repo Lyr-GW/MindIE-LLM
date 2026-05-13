@@ -1,0 +1,89 @@
+---
+title: Expert Parallel
+---
+      <h1>Expert Parallel（专家并行）</h1>
+      <p class="lead">把 MoE 模型的不同专家分布到不同 NPU 上，实现「专家级」并行。
+      MindIE-LLM 提供 AllGather 与 AllToAll + 通算融合两种实现，按场景择优。</p>
+
+      <h2 id="why">为什么 MoE 要 EP</h2>
+      <p>MoE 模型一层有几十甚至几百个专家，所有专家放一卡显存装不下；放到不同卡又需要把 token 路由
+      到对应专家所在的卡 — 这就是 EP 的核心。</p>
+
+      <h2 id="levels">两种实现（ep_level）</h2>
+
+      <h3 id="ep1">ep_level = 1：基于 AllGather</h3>
+      <ul>
+        <li>每张卡先 AllGather 所有专家的输入 hidden_states；</li>
+        <li>本地按 routing 决定哪些 token 由本地专家计算；</li>
+        <li>计算完毕后丢弃非本地结果，再 AllReduce 合并。</li>
+      </ul>
+      <p>优点：实现简单、对通信拓扑要求低；
+      缺点：通信量大，长序列下显存压力大。</p>
+      <p>专属优化：<code>enable_init_routing_cutoff</code> + <code>topk_scaling_factor</code>
+      允许 topk 截断，丢弃 hidden_states 末段无效数据，省显存。</p>
+
+      <h3 id="ep2">ep_level = 2：基于 AllToAll + 通算融合</h3>
+      <ul>
+        <li>使用 AllToAll：每张卡把<strong>需要别的专家计算</strong>的 token 一次性发送到对应卡；</li>
+        <li>每张卡只算自己负责的专家；</li>
+        <li>结果通过 AllToAll 反向回收。</li>
+      </ul>
+      <p>优点：通信量与 token 数成正比，算力 / 通信效率都最优；
+      缺点：双机部署时<strong>必须经交换机</strong>，否则启动失败。</p>
+      <p>专属优化：<code>alltoall_ep_buffer_scale_factors</code> 按序列长度分级控制通信 buffer 大小，
+      避免短序列浪费、长序列 OOM。</p>
+
+      <h2 id="config">配置示例</h2>
+      <p>ep_level = 2（推荐 DeepSeek-V3 / R1）：</p>
+      <pre data-lang="json"><code>"ModelConfig": [{
+  "modelName":       "DeepSeek-R1_w8a8",
+  "modelWeightPath": "/data/weights/DeepSeek-R1_w8a8",
+  "worldSize":       8,
+  "moe_ep":          8,
+  "models": {
+    "deepseekv2": {
+      "ep_level": 2,
+      "alltoall_ep_buffer_scale_factors": [
+        [1048576, 1.32], [524288, 1.4], [262144, 1.53],
+        [131072, 1.8], [32768, 3.0], [8192, 5.2], [0, 8.0]
+      ]
+    }
+  }
+}]</code></pre>
+      <p>ep_level = 1（长序列、跨拓扑场景）：</p>
+      <pre data-lang="json"><code>"models": {
+  "deepseekv2": {
+    "ep_level": 1,
+    "enable_init_routing_cutoff": true,
+    "topk_scaling_factor": 0.25
+  }
+}</code></pre>
+
+      <h2 id="grouped">Grouped MatMul 融合算子</h2>
+      <p>当 EP 数 &gt; 32 时，DeepSeek-V3 / R1 自动启用 Grouped MatMul：把同一卡上多个专家的 matmul
+      合并成一次大算子，降低 kernel launch 开销。</p>
+
+      <h2 id="impl">在 MindIE-LLM 中的实现</h2>
+      <p>Python 层 <span class="path">mindie_llm/runtime/layers/fused_moe/</span> 与
+      <span class="path">mindie_llm/distributed/</span> 协作。distribute 层负责创建
+      EP 通信组（HCCL），fused_moe 算子负责 routing、permute、grouped matmul、reduce。</p>
+
+      <h2 id="combine">叠加方案</h2>
+      <ul>
+        <li>+ <a href="expert-load-balance.html">EPLB 负载均衡</a>：处理热点专家。</li>
+        <li>+ <a href="shared-expert.html">共享专家外置</a>：把高频共享专家独立部署。</li>
+        <li>+ <a href="data-parallel.html">DP</a>：多实例稀疏推理。</li>
+      </ul>
+
+      <h2 id="limit">已知限制</h2>
+      <ul>
+        <li>仅 DeepSeek-V2 / V3 / R1 支持。</li>
+        <li>ep_level = 2 双机必须经交换机。</li>
+        <li>当 EP &gt; 32 自动 Grouped MatMul，可显著提升性能。</li>
+      </ul>
+
+      <h2 id="ref">参考</h2>
+      <ul>
+        <li>本仓库官方文档：<code>docs/zh/user_guide/feature/expert_parallel.md</code></li>
+        <li>论文：<em>Switch Transformer</em>、<em>GShard</em></li>
+      </ul>

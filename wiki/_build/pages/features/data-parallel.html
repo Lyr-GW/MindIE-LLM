@@ -1,0 +1,86 @@
+---
+title: Data Parallel
+---
+      <h1>Data Parallel（数据并行）</h1>
+      <p class="lead">把请求分配到不同设备组并行处理，结果合并。等价于「同一模型部署多份实例」，
+      推理阶段几乎无组间通信，是<strong>横向扩并发</strong>最简单的并行方式。</p>
+
+      <h2 id="when">什么时候用 DP</h2>
+      <ul>
+        <li>显存够装一份模型，但 QPS 没顶到上限 — DP 直接线性扩并发。</li>
+        <li>MoE 模型的 Attention 部分（计算密集、通信少）适合 DP；MoE 部分仍走 TP / EP。</li>
+        <li>多实例不需要共享上下文（不同业务、不同租户）。</li>
+      </ul>
+
+      <h2 id="how">原理</h2>
+      <p>每个 DP 实例独立持有一份完整模型副本，独立维护自己的 KV Cache 与 batch。
+      请求路由层（如 <a href="../server-api.html">endpoint</a> + load balance）负责把请求分发给
+      合适的实例。</p>
+      <pre class="ascii-art">
+   Request 1 ──→ DP-Inst-0 (NPU 0,1,2,3)  ──→ Response 1
+   Request 2 ──→ DP-Inst-1 (NPU 4,5,6,7)  ──→ Response 2
+   Request 3 ──→ DP-Inst-0 (NPU 0,1,2,3)  ──→ Response 3
+   ...
+</pre>
+
+      <h2 id="config-fields">配置字段</h2>
+      <p>在 <code>ModelConfig</code> 下加 <code>tp / dp / cp / sp</code>：</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>字段</th><th>含义</th><th>约束</th></tr></thead>
+          <tbody>
+            <tr><td><code>tp</code></td><td>整网张量并行数</td><td>tp × dp = worldSize（与 cp/sp 联动）</td></tr>
+            <tr><td><code>dp</code></td><td>Attention 数据并行数</td><td>−1 表示关闭，默认 −1</td></tr>
+            <tr><td><code>cp</code></td><td>上下文并行数</td><td>1 = 关闭；与 sp 配合时 dp=1</td></tr>
+            <tr><td><code>sp</code></td><td>序列并行数</td><td>与 tp 配合时 sp=tp</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="example">配置示例</h2>
+      <p>8 卡：Attention 走 DP=8、MoE 走 TP=1（或者 MoE 由 moe_tp 控制）：</p>
+      <pre data-lang="json"><code>"ModelConfig": [{
+  "modelName": "deepseekv2",
+  "modelWeightPath": "/weights/DeepSeek-V2-Chat-W8A8-BF16/",
+  "worldSize": 8,
+  "tp": 1,
+  "dp": 8,
+  "cp": 1,
+  "sp": 1
+}]</code></pre>
+      <p>多实例（DP=2）+ TP=4：</p>
+      <pre data-lang="json"><code>"BackendConfig": {
+  "npuDeviceIds": [[0,1,2,3], [4,5,6,7]],
+  ...
+  "ModelConfig": [{
+    "modelName": "qwen2-72b",
+    "modelWeightPath": "/weights/qwen2-72b",
+    "worldSize": 4
+  }]
+}</code></pre>
+      <p>注意：<strong>实例级</strong>的 DP 通过 <code>npuDeviceIds</code> 二维数组表达；
+      <strong>模块级</strong>的 DP（仅 Attention 走 DP）则通过 <code>tp/dp</code> 字段表达。</p>
+
+      <h2 id="env">环境变量优化</h2>
+      <pre data-lang="bash"><code>export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
+export ATB_WORKSPACE_MEM_ALLOC_ALG_TYPE=3</code></pre>
+
+      <h2 id="benefit">收益</h2>
+      <ul>
+        <li>多实例 DP：吞吐近线性扩展，QPS 受总卡数 / 单实例 batch 上限决定。</li>
+        <li>模块级 DP（仅 Attention）：避免长上下文场景下 attention TP 通信过重。</li>
+      </ul>
+
+      <h2 id="limit">已知限制</h2>
+      <ul>
+        <li>Atlas 800I A2 / A3 支持。</li>
+        <li>所有模型的 Attention / MLP 模块均支持。</li>
+        <li>DP 与 TP 可在<strong>同一模块上叠加使用</strong>（详见 <code>tp×dp=worldSize</code> 公式）。</li>
+      </ul>
+
+      <h2 id="ref">参考</h2>
+      <ul>
+        <li>本仓库官方文档：<code>docs/zh/user_guide/feature/data_parallel.md</code></li>
+        <li>相关：<a href="tensor-parallel.html">TP</a>、<a href="context-parallel.html">CP</a>、
+        <a href="sequence-parallel.html">SP</a></li>
+      </ul>

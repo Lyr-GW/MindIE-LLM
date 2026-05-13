@@ -1,0 +1,84 @@
+---
+title: Tensor Parallel
+---
+      <h1>Tensor Parallel（张量并行）</h1>
+      <p class="lead">把模型权重沿维度切分到多张卡，每张卡只算一部分；通过 AllReduce 把结果合起来。
+      是单实例多卡推理 70B 这类大模型的<strong>必经之路</strong>。</p>
+
+      <h2 id="why">为什么需要 TP</h2>
+      <p>一个 70B 模型 fp16 约 140 GB，单张 NPU 装不下；即便装得下，单卡算力也吃不动 prompt
+      长度 8k 的 prefill。把权重在 head / hidden 维度切开，各卡并行算，是最自然的方案。</p>
+
+      <h2 id="how">原理（Megatron 风格）</h2>
+      <p>对 Linear <code>y = W·x</code> 的两种切法：</p>
+      <ul>
+        <li><strong>Column-Parallel</strong>：W 按列切 → 各卡输出 y 的不同列 → 不需要立刻合并。</li>
+        <li><strong>Row-Parallel</strong>：W 按行切 → 各卡需要相同的 x → 算完 partial sum →
+          一次 <strong>AllReduce</strong> 合成 y。</li>
+      </ul>
+      <p>典型结构 <code>ColumnLinear → activation → RowLinear</code> 把两次 matmul 之间的通信省到
+      只剩 1 次 AllReduce。Attention 中的 head 切分逻辑类似。</p>
+
+      <pre class="ascii-art">
+   x ──→ ColumnLinear (W₁ 按列切)  →  partial activations
+                                            │
+                                       activation
+                                            │
+   ──→ RowLinear (W₂ 按行切) → partial sums ──AllReduce── y
+</pre>
+
+      <h2 id="impl">在 MindIE-LLM 中的实现</h2>
+      <p>Python 层：<span class="path">mindie_llm/runtime/layers/linear/</span> 提供
+      <code>ColumnParallelLinear</code> / <code>RowParallelLinear</code>；通信组通过
+      <span class="path">mindie_llm/distributed/</span> 创建（HCCL）。</p>
+
+      <h2 id="config">配置</h2>
+      <pre data-lang="json"><code>"ModelConfig": [{
+  "modelName":       "qwen2-72b",
+  "modelWeightPath": "/weights/qwen2-72b",
+  "worldSize":       8,        // 所用卡数
+  "tp":              8         // TP = 8
+}]</code></pre>
+      <p><code>worldSize</code> 与 <code>tp</code> 的关系：单实例下两者通常相等。配合 DP / EP 时按
+      <code>tp × dp × ... = worldSize</code> 计算。</p>
+
+      <h2 id="local-tp">DeepSeek 专用：local TP 切分</h2>
+      <p>对 DeepSeek-V3 / R1 / V3.1，可对部分矩阵做更细粒度切分：</p>
+      <ul>
+        <li><code>lm_head_local_tp</code>：LmHead 矩阵的 TP 切分数，减少计算时间。</li>
+        <li><code>o_proj_local_tp</code>：Attention O 矩阵的 TP 切分数，PD 分离的低时延场景下减少 decode 时延。</li>
+      </ul>
+      <pre data-lang="json"><code>"models": {
+  "deepseekv2": {
+    "parallel_options": {
+      "lm_head_local_tp": 4,
+      "o_proj_local_tp":  2
+    }
+  }
+}</code></pre>
+      <div class="admonition warn">
+        <div class="admonition-title">⚠ 互斥</div>
+        <p>当 <code>tp &gt; 1</code> 时，<strong>不支持</strong> 与
+        <code>o_proj_local_tp</code> 同时开启；也<strong>不建议</strong> 与
+        <code>lm_head_local_tp</code> 同时开启。</p>
+      </div>
+
+      <h2 id="tradeoff">权衡</h2>
+      <ul>
+        <li>TP 越大：单卡显存压力越小，但 AllReduce 通信占比越高、吞吐反而可能下降。</li>
+        <li>NPU 内卡间带宽优先（同一 superpod &gt; 同机内 &gt; 跨机），尽量把 TP 限制在带宽好的范围。</li>
+        <li>常见组合：单机 8 卡 → TP=8；超节点 144 卡 → TP=8 + EP=18（举例）。</li>
+      </ul>
+
+      <h2 id="limit">已知限制</h2>
+      <ul>
+        <li>Atlas 800I A2 / A3 支持。</li>
+        <li>DeepSeek-V3/R1：local TP 切分有专门约束，详见上文。</li>
+      </ul>
+
+      <h2 id="ref">参考</h2>
+      <ul>
+        <li>本仓库官方文档：<code>docs/zh/user_guide/feature/tensor_parallel.md</code></li>
+        <li>论文：<em>Megatron-LM</em></li>
+        <li>相关：<a href="data-parallel.html">DP</a>、<a href="expert-parallel.html">EP</a></li>
+      </ul>

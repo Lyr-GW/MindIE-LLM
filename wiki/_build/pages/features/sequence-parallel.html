@@ -1,0 +1,65 @@
+---
+title: Sequence Parallel
+---
+      <h1>Sequence Parallel（序列并行）</h1>
+      <p class="lead">把 KV Cache 沿序列维度切分到多卡，每张卡只存自己的一段 KV — 是
+      「长上下文 decode」时不让 KV 撑死的核心手段。</p>
+
+      <h2 id="why">问题：长上下文的 KV 也太大</h2>
+      <p>即使开启 <a href="context-parallel.html">CP</a> 解决了 prefill，decode 阶段的 KV Cache 仍持
+      整个序列；128k 序列下 KV 体积非常可观。SP 把 KV Cache 沿 seq 维切分，每个 sp_rank 只存
+      <code>L / sp</code> 段。</p>
+
+      <pre class="ascii-art">
+   sp = 4 时 KV Cache 分布：
+     rank 0:  KV[ 0   :  L/4 ]
+     rank 1:  KV[ L/4 : 2L/4 ]
+     rank 2:  KV[ 2L/4: 3L/4 ]
+     rank 3:  KV[ 3L/4: L   ]
+
+   decode 计算 q @ K^T:
+     每 rank 算 q @ K_local^T  → AllGather 合并 → softmax → 加权 V_local → AllReduce
+</pre>
+
+      <h2 id="config">配置</h2>
+      <pre data-lang="json"><code>"ModelConfig": [{
+  "modelName":       "DeepSeek-R1_w8a8",
+  "modelWeightPath": "/data/weights/DeepSeek-R1_w8a8",
+  "worldSize":       16,
+  "dp":  2,
+  "sp":  8,    // 必须 = tp
+  "tp":  8,
+  "moe_ep": 16,
+  "moe_tp": 1
+}]</code></pre>
+      <p>规则：<code>sp = tp</code>。组合自由：</p>
+      <ul>
+        <li>DP × TP × SP（不开 CP）：<code>dp × tp = worldSize</code></li>
+        <li>CP × TP × SP（开 CP）：<code>cp × tp = worldSize</code> 且 <code>dp = 1</code></li>
+      </ul>
+
+      <h2 id="limit">已知限制</h2>
+      <ul>
+        <li>Atlas 800I A2 / A3 支持。</li>
+        <li>仅 DeepSeek-R1 (W8A8 / W4A8)、DeepSeek-V3 (W4A8)、DeepSeek-V3.1 (W4A8) 支持。</li>
+        <li>不支持 BF16。</li>
+        <li>PD 分离时仅 P 节点开启 SP。</li>
+        <li>与 <a href="mtp.html">MTP</a> = 1（PD 混部）/ MTP（PD 分离）/ <a href="async-scheduling.html">异步调度</a> /
+          <a href="prefix-cache.html">Prefix Cache</a> 叠加 OK。</li>
+      </ul>
+
+      <h2 id="benefit">收益</h2>
+      <ul>
+        <li>KV 显存按 1/sp 降；128k 上下文场景可避免 OOM。</li>
+        <li>decode 单步多一次 AllGather + AllReduce，时延略增；但能跑得动是首要前提。</li>
+      </ul>
+
+      <h2 id="combine">叠加方案</h2>
+      <p>SP 与 <a href="context-parallel.html">CP</a> 是「长 prefill + 长 decode」的<strong>黄金搭档</strong>，
+      DeepSeek-R1 长上下文场景的标准配置就是
+      <code>cp=2 + sp=tp=8 + dp=1</code>。</p>
+
+      <h2 id="ref">参考</h2>
+      <ul>
+        <li>本仓库官方文档：<code>docs/zh/user_guide/feature/sequence_parallel.md</code></li>
+      </ul>

@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>共享专家外置 · MindIE-LLM Wiki</title>
+<meta name="description" content="共享专家外置 — MindIE-LLM Wiki">
+<link rel="icon" href="../assets/img/favicon.ico">
+<link rel="stylesheet" href="../assets/css/wiki.css">
+</head>
+<body>
+<header class="site-header">
+  <a class="brand" href="../index.html">
+    <img src="../assets/img/ascend-logo.png" alt="Ascend">
+    <span>MindIE-<span class="accent">LLM</span> Wiki</span>
+  </a>
+  <div class="header-spacer"></div>
+  <nav class="header-links">
+    <a href="https://github.com/Lyr-GW/MindIE-LLM" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://gitcode.com/Ascend/MindIE-LLM" target="_blank" rel="noopener">GitCode</a>
+    <a href="https://www.hiascend.com/" target="_blank" rel="noopener">昇腾社区</a>
+  </nav>
+  <button class="theme-toggle" type="button">☾ 暗色</button>
+  <button class="menu-toggle" type="button" aria-label="菜单">☰</button>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <input class="sidebar-filter" placeholder="筛选目录…" aria-label="筛选目录">
+    <nav>
+      <div class="nav-group">
+        <div class="nav-group-title">入门</div>
+        <ul>
+          <li><a href="../index.html">首页</a></li>
+          <li><a href="../introduction.html">项目简介</a></li>
+          <li><a href="../quick-start.html">快速入门</a></li>
+          <li><a href="../installation.html">安装与编译</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">架构与内核</div>
+        <ul>
+          <li><a href="../architecture.html">架构总览</a></li>
+          <li><a href="../directory.html">目录结构</a></li>
+          <li><a href="../server-api.html">服务端与 API</a></li>
+          <li><a href="../cpp-engine.html">C++ 引擎内核</a></li>
+          <li><a href="../scheduler.html">调度器</a></li>
+          <li><a href="../block-manager.html">KV Cache &amp; Block</a></li>
+          <li><a href="../python-runtime.html">Python 推理框架</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">特性</div>
+        <ul>
+          <li><a href="../features.html">特性总览（索引）</a></li>
+          <li><a href="../quantization.html">量化特性</a></li>
+          <li><a href="../parallelism.html">并行策略</a></li>
+          <li><a href="../acceleration.html">加速特性</a></li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-0" aria-expanded="false"><span>基础并行</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-0">
+          <li><a href="../features/multi-lora.html">Multi-LoRA</a></li>
+          <li><a href="../features/moe.html">MoE</a></li>
+          <li><a href="../features/mla.html">MLA</a></li>
+          <li><a href="../features/expert-load-balance.html">EPLB 负载均衡</a></li>
+          <li><a href="../features/shared-expert.html">共享专家外置</a></li>
+          <li><a href="../features/expert-parallel.html">Expert Parallel</a></li>
+          <li><a href="../features/data-parallel.html">Data Parallel</a></li>
+          <li><a href="../features/tensor-parallel.html">Tensor Parallel</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-1" aria-expanded="false"><span>量化</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-1">
+          <li><a href="../features/anti-outlier.html">离群值抑制</a></li>
+          <li><a href="../features/pdmix-quant.html">PD MIX 量化</a></li>
+          <li><a href="../features/w8a8.html">W8A8</a></li>
+          <li><a href="../features/w4a8.html">W4A8 混合</a></li>
+          <li><a href="../features/w8a16.html">W8A16</a></li>
+          <li><a href="../features/attention-quant.html">Attention 量化</a></li>
+          <li><a href="../features/fa3-quant.html">FA3 量化</a></li>
+          <li><a href="../features/kv-int8.html">KV Cache Int8</a></li>
+          <li><a href="../features/w8a8sc.html">W8A8SC 稀疏</a></li>
+          <li><a href="../features/w16a16sc.html">W16A16SC 稀疏</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-2" aria-expanded="false"><span>长序列</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-2">
+          <li><a href="../features/context-parallel.html">Context Parallel</a></li>
+          <li><a href="../features/sequence-parallel.html">Sequence Parallel</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-3" aria-expanded="false"><span>调度</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-3">
+          <li><a href="../features/async-scheduling.html">异步调度</a></li>
+          <li><a href="../features/splitfuse.html">SplitFuse</a></li>
+          <li><a href="../features/slo-scheduling.html">SLO 调度优化</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-4" aria-expanded="false"><span>加速</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-4">
+          <li><a href="../features/micro-batch.html">Micro Batch</a></li>
+          <li><a href="../features/speculative-decoding.html">投机解码 / Lookahead</a></li>
+          <li><a href="../features/mtp.html">MTP</a></li>
+          <li><a href="../features/prefix-cache.html">Prefix Cache</a></li>
+          <li><a href="../features/kv-cache-pool.html">KV Cache 池化</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-5" aria-expanded="false"><span>交互与其他</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-5">
+          <li><a href="../features/function-call.html">Function Call</a></li>
+          <li><a href="../features/reasoning.html">思考解析与预算</a></li>
+          <li><a href="../features/structured-output.html">结构化输出</a></li>
+          <li><a href="../features/offline-weight.html">权重离线切分</a></li>
+          </ul>
+        </li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">开发</div>
+        <ul>
+          <li><a href="../development.html">开发与贡献</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">参考</div>
+        <ul>
+          <li><a href="../faq.html">常见问题</a></li>
+          <li><a href="../references.html">参考资料</a></li>
+        </ul>
+      </div>
+    </nav>
+  </aside>
+
+  <main class="content">
+    <nav class="breadcrumb">
+      <a href="../index.html">首页</a><span class="sep">›</span><a href="../features.html">特性</a><span class="sep">›</span><span>共享专家外置</span>
+    </nav>
+    <article>
+      <h1>共享专家外置 / 内置 / 混置</h1>
+      <p class="lead">MoE 模型常有「共享专家」（每个 token 都过）。MindIE-LLM 提供三种部署方式
+      把它放在不同位置，平衡通信、算力与负载均衡效果。</p>
+
+      <h2 id="three">三种部署形态</h2>
+
+      <h3 id="external">共享专家外置（推荐）</h3>
+      <p>把共享专家独立部署到<strong>专门的前几张 NPU</strong>，与路由专家 / 冗余专家分离。</p>
+      <pre data-lang="text"><code>计算流程：dispatch → 同时计算共享专家 + 路由专家 → combine</code></pre>
+      <ul>
+        <li>共享专家所在 NPU 不参与 AllToAll，专心做密集计算。</li>
+        <li>路由专家所在 NPU 专心做稀疏路由，负载均衡更纯粹。</li>
+        <li>整体 TPOT 显著改善。</li>
+      </ul>
+
+      <h3 id="internal">共享专家内置</h3>
+      <p>共享专家与路由 / 冗余专家共住一张 NPU。</p>
+      <pre data-lang="text"><code>计算流程：共享专家 matmul → dispatch → 路由专家 → combine → 共享 + 路由结果相加</code></pre>
+      <p>无额外卡需求，但共享专家会与路由专家争抢算力，对 EPLB 干扰大。</p>
+
+      <h3 id="mix">共享专家混置</h3>
+      <p>把共享专家<strong>当作普通路由专家</strong>纳入负载均衡考量。</p>
+      <pre data-lang="text"><code>计算流程：dispatch → 同时计算共享专家 + 路由专家 → combine</code></pre>
+      <ul>
+        <li>EPLB 算法把它视为一个高频专家，自动复制到多卡。</li>
+        <li>对 Atlas 800I A2 / A3 都支持。</li>
+      </ul>
+
+      <h2 id="diff">三者对比</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th></th><th>外置</th><th>内置</th><th>混置</th></tr></thead>
+          <tbody>
+            <tr><td>额外卡</td><td>需要</td><td>不需要</td><td>不需要</td></tr>
+            <tr><td>是否参与 EPLB</td><td>否</td><td>否</td><td>是</td></tr>
+            <tr><td>支持平台</td><td>800I A3 144 卡</td><td>所有</td><td>800I A2 / A3</td></tr>
+            <tr><td>配合 EPLB</td><td>性能更优</td><td>—</td><td>性能更优</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="enable">如何开启</h2>
+
+      <h3 id="rec">（推荐）外置 + EPLB</h3>
+      <p>先按 <a href="expert-load-balance.html">EPLB</a> 步骤生成 <code>expert_map.json</code>。</p>
+      <pre data-lang="json"><code>"models": {
+  "deepseekv2": {
+    "ep_level": 2,
+    "eplb": {
+      "level": 1,
+      "expert_map_file": "/path/to/expert_map.json"
+    }
+  }
+}</code></pre>
+
+      <h3 id="ext-only">外置（仅 800I A3 144 卡）</h3>
+      <pre data-lang="json"><code>"models": {
+  "deepseekv2": {
+    "ep_level": 2,
+    "num_dangling_shared_experts": 32   // 多少个共享专家被外置
+  }
+}</code></pre>
+
+      <h3 id="mix-only">仅混置</h3>
+      <pre data-lang="json"><code>"models": {
+  "deepseekv2": {
+    "mix_shared_routing": true
+  }
+}</code></pre>
+
+      <h2 id="limit">已知限制</h2>
+      <ul>
+        <li>仅支持 DeepSeek-V3 / R1。</li>
+        <li>「外置」仅支持 Atlas 800I A3 超节点 144 卡场景。</li>
+        <li>「混置」同时支持 800I A2 / A3。</li>
+        <li>W4A8 + 共享专家外置时，需要使用<strong>共享专家本身也是 W4A8</strong> 的特殊权重。</li>
+      </ul>
+
+      <h2 id="ref">参考</h2>
+      <ul>
+        <li>本仓库官方文档：<code>docs/zh/user_guide/feature/mix_shared_routing.md</code></li>
+        <li>相关：<a href="expert-parallel.html">EP</a>、<a href="expert-load-balance.html">EPLB</a>、
+        <a href="moe.html">MoE</a></li>
+      </ul>
+
+    </article>
+
+    <footer class="page-footer">
+      <a class="pager-prev" href="expert-load-balance.html">EPLB 负载均衡</a>
+      <a class="pager-next" href="expert-parallel.html">Expert Parallel</a>
+      <div class="copyright">
+        © 2025–2026 MindIE-LLM Wiki · 内容基于源码归纳，与官方文档可能存在表述差异
+      </div>
+    </footer>
+  </main>
+
+  <aside class="toc"></aside>
+</div>
+
+<script src="../assets/js/wiki.js"></script>
+</body>
+</html>

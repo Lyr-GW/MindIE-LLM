@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MoE 模型支持 · MindIE-LLM Wiki</title>
+<meta name="description" content="MoE 模型支持 — MindIE-LLM Wiki">
+<link rel="icon" href="../assets/img/favicon.ico">
+<link rel="stylesheet" href="../assets/css/wiki.css">
+</head>
+<body>
+<header class="site-header">
+  <a class="brand" href="../index.html">
+    <img src="../assets/img/ascend-logo.png" alt="Ascend">
+    <span>MindIE-<span class="accent">LLM</span> Wiki</span>
+  </a>
+  <div class="header-spacer"></div>
+  <nav class="header-links">
+    <a href="https://github.com/Lyr-GW/MindIE-LLM" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://gitcode.com/Ascend/MindIE-LLM" target="_blank" rel="noopener">GitCode</a>
+    <a href="https://www.hiascend.com/" target="_blank" rel="noopener">昇腾社区</a>
+  </nav>
+  <button class="theme-toggle" type="button">☾ 暗色</button>
+  <button class="menu-toggle" type="button" aria-label="菜单">☰</button>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <input class="sidebar-filter" placeholder="筛选目录…" aria-label="筛选目录">
+    <nav>
+      <div class="nav-group">
+        <div class="nav-group-title">入门</div>
+        <ul>
+          <li><a href="../index.html">首页</a></li>
+          <li><a href="../introduction.html">项目简介</a></li>
+          <li><a href="../quick-start.html">快速入门</a></li>
+          <li><a href="../installation.html">安装与编译</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">架构与内核</div>
+        <ul>
+          <li><a href="../architecture.html">架构总览</a></li>
+          <li><a href="../directory.html">目录结构</a></li>
+          <li><a href="../server-api.html">服务端与 API</a></li>
+          <li><a href="../cpp-engine.html">C++ 引擎内核</a></li>
+          <li><a href="../scheduler.html">调度器</a></li>
+          <li><a href="../block-manager.html">KV Cache &amp; Block</a></li>
+          <li><a href="../python-runtime.html">Python 推理框架</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">特性</div>
+        <ul>
+          <li><a href="../features.html">特性总览（索引）</a></li>
+          <li><a href="../quantization.html">量化特性</a></li>
+          <li><a href="../parallelism.html">并行策略</a></li>
+          <li><a href="../acceleration.html">加速特性</a></li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-0" aria-expanded="false"><span>基础并行</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-0">
+          <li><a href="../features/multi-lora.html">Multi-LoRA</a></li>
+          <li><a href="../features/moe.html">MoE</a></li>
+          <li><a href="../features/mla.html">MLA</a></li>
+          <li><a href="../features/expert-load-balance.html">EPLB 负载均衡</a></li>
+          <li><a href="../features/shared-expert.html">共享专家外置</a></li>
+          <li><a href="../features/expert-parallel.html">Expert Parallel</a></li>
+          <li><a href="../features/data-parallel.html">Data Parallel</a></li>
+          <li><a href="../features/tensor-parallel.html">Tensor Parallel</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-1" aria-expanded="false"><span>量化</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-1">
+          <li><a href="../features/anti-outlier.html">离群值抑制</a></li>
+          <li><a href="../features/pdmix-quant.html">PD MIX 量化</a></li>
+          <li><a href="../features/w8a8.html">W8A8</a></li>
+          <li><a href="../features/w4a8.html">W4A8 混合</a></li>
+          <li><a href="../features/w8a16.html">W8A16</a></li>
+          <li><a href="../features/attention-quant.html">Attention 量化</a></li>
+          <li><a href="../features/fa3-quant.html">FA3 量化</a></li>
+          <li><a href="../features/kv-int8.html">KV Cache Int8</a></li>
+          <li><a href="../features/w8a8sc.html">W8A8SC 稀疏</a></li>
+          <li><a href="../features/w16a16sc.html">W16A16SC 稀疏</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-2" aria-expanded="false"><span>长序列</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-2">
+          <li><a href="../features/context-parallel.html">Context Parallel</a></li>
+          <li><a href="../features/sequence-parallel.html">Sequence Parallel</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-3" aria-expanded="false"><span>调度</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-3">
+          <li><a href="../features/async-scheduling.html">异步调度</a></li>
+          <li><a href="../features/splitfuse.html">SplitFuse</a></li>
+          <li><a href="../features/slo-scheduling.html">SLO 调度优化</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-4" aria-expanded="false"><span>加速</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-4">
+          <li><a href="../features/micro-batch.html">Micro Batch</a></li>
+          <li><a href="../features/speculative-decoding.html">投机解码 / Lookahead</a></li>
+          <li><a href="../features/mtp.html">MTP</a></li>
+          <li><a href="../features/prefix-cache.html">Prefix Cache</a></li>
+          <li><a href="../features/kv-cache-pool.html">KV Cache 池化</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-5" aria-expanded="false"><span>交互与其他</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-5">
+          <li><a href="../features/function-call.html">Function Call</a></li>
+          <li><a href="../features/reasoning.html">思考解析与预算</a></li>
+          <li><a href="../features/structured-output.html">结构化输出</a></li>
+          <li><a href="../features/offline-weight.html">权重离线切分</a></li>
+          </ul>
+        </li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">开发</div>
+        <ul>
+          <li><a href="../development.html">开发与贡献</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">参考</div>
+        <ul>
+          <li><a href="../faq.html">常见问题</a></li>
+          <li><a href="../references.html">参考资料</a></li>
+        </ul>
+      </div>
+    </nav>
+  </aside>
+
+  <main class="content">
+    <nav class="breadcrumb">
+      <a href="../index.html">首页</a><span class="sep">›</span><a href="../features.html">特性</a><span class="sep">›</span><span>MoE 模型支持</span>
+    </nav>
+    <article>
+      <h1>MoE（Mixture of Experts）</h1>
+      <p class="lead">把单一 FFN 替换为 N 个并行的「专家」，每个 token 只激活其中 K 个 —
+      在不显著增加单 token 计算量的前提下，把模型容量推向万亿级别。</p>
+
+      <h2 id="what">这是什么</h2>
+      <p>传统 Transformer 在每个 block 内是 <code>Attention → FFN</code>。MoE 把 FFN 改为：</p>
+      <pre data-lang="text"><code>x ──→ Router (gate) ──→ topK 选择 K 个专家 ──→ 加权求和 ──→ y
+              │                              │
+              └─ K 远小于 N（例如 N=8, K=2） ─┘</code></pre>
+      <p>每个 token 只「点亮」少量专家，但所有专家都驻留显存 → 容量 ↑、单 token 算力大致不变。</p>
+
+      <h2 id="key">两个关键机制</h2>
+      <ul>
+        <li><strong>Sparse MoE Layer</strong>：替换原 FFN，N 个专家并行存在。</li>
+        <li><strong>Router</strong>：通常是一层 Linear + softmax，决定 token 去哪 K 个专家。
+        如何避免专家失衡是核心难点（详见 <a href="expert-load-balance.html">EPLB</a>）。</li>
+      </ul>
+
+      <h2 id="models">支持模型与并行能力</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>模型</th><th>数据格式</th><th>量化</th><th>并行</th><th>多机</th></tr></thead>
+          <tbody>
+            <tr><td>Mixtral 8×7B</td><td>FP16</td><td>暂不支持</td><td>TP</td><td>否</td></tr>
+            <tr><td>Mixtral 8×22B</td><td>FP16</td><td>暂不支持</td><td>TP</td><td>否</td></tr>
+            <tr><td>DeepSeek-16B-MoE</td><td>FP16</td><td>暂不支持</td><td>TP</td><td>否</td></tr>
+            <tr><td>DeepSeek-V2 / V3 / R1</td><td>BF16</td><td>支持</td><td>TP / EP</td><td>是</td></tr>
+            <tr><td>Qwen3-30B-A3B</td><td>BF16</td><td>支持</td><td>TP</td><td>否</td></tr>
+            <tr><td>Qwen3-235B-A22B</td><td>BF16</td><td>支持</td><td>TP</td><td>是</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="impl">引擎内部</h2>
+      <ul>
+        <li><strong>Python 层</strong>：<span class="path">mindie_llm/runtime/layers/fused_moe/</span>
+          实现 routing、permute、grouped matmul、reduce 全流程的融合算子。</li>
+        <li><strong>专家并行</strong>：见 <a href="expert-parallel.html">Expert Parallel</a>。</li>
+        <li><strong>负载均衡</strong>：见 <a href="expert-load-balance.html">EPLB</a>。</li>
+        <li><strong>共享专家外置</strong>：见 <a href="shared-expert.html">共享专家外置</a>。</li>
+      </ul>
+
+      <h2 id="enable">如何开启</h2>
+      <p>没有「开关」 — 选用 MoE 模型即自动启用。直接把模型权重路径写入
+      <code>config.json</code> 即可：</p>
+      <pre data-lang="json"><code>"ModelConfig": [{
+  "modelName":       "deepseekr1",
+  "modelWeightPath": "/weights/DeepSeek-R1",
+  "worldSize":       16,
+  "tp": 8, "moe_ep": 4, "moe_tp": 2
+}]</code></pre>
+
+      <h2 id="benefit">为什么 MoE 跑得动</h2>
+      <p>同等参数量下：</p>
+      <ul>
+        <li>稠密模型：所有参数对每个 token 都做计算。</li>
+        <li>MoE 模型：每 token 只激活 K/N 比例（如 1/4）的参数 → 单 token 算力低 ~4×。</li>
+      </ul>
+      <p>但 MoE 把<strong>带宽与负载均衡</strong>变成新瓶颈，需要 EP / EPLB 协作解决。</p>
+
+      <h2 id="grouped">Grouped MatMul 自动融合</h2>
+      <p>当 EP 数 &gt; 32 时，DeepSeek-V3 / R1 自动启用 <strong>Grouped MatMul 融合算子</strong>，
+      把同一卡上多个专家的 matmul 合并下发，降低 kernel launch 开销。</p>
+
+      <h2 id="ref">参考</h2>
+      <ul>
+        <li>本仓库官方文档：<code>docs/zh/user_guide/feature/moe.md</code> +
+        <code>docs/zh/developer_guide/architecture_design/MoE.md</code></li>
+        <li>论文：<em>Switch Transformer</em>、<em>GShard</em>、DeepSeek-V3</li>
+      </ul>
+
+    </article>
+
+    <footer class="page-footer">
+      <a class="pager-prev" href="multi-lora.html">Multi-LoRA</a>
+      <a class="pager-next" href="mla.html">MLA</a>
+      <div class="copyright">
+        © 2025–2026 MindIE-LLM Wiki · 内容基于源码归纳，与官方文档可能存在表述差异
+      </div>
+    </footer>
+  </main>
+
+  <aside class="toc"></aside>
+</div>
+
+<script src="../assets/js/wiki.js"></script>
+</body>
+</html>
