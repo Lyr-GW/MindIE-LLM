@@ -1,7 +1,0 @@
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/conf/
-     DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/conf/
-     FILE_PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ)
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/conf/cert/server.pem
-     DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/conf/cert
-     FILE_PERMISSIONS OWNER_READ OWNER_WRITE)
-build_test(config_manager ut "mindieservice_endpoint;config_manager;${Boost_LIBRARIES};${OPENSSL_LIBRARIES};${Python3_LIBRARIES};" "${PROJECT_SOURCE_DIR}/src/config_manager;${PROJECT_SOURCE_DIR}/src/server/endpoint/grpc_wrapper;${PROJECT_SOURCE_DIR}/src/server/endpoint;${THIRD_PARTY_OUTPUT_DIR}/http/include;${PROJECT_SOURCE_DIR}/src/server/endpoint/utils;${PROJECT_SOURCE_DIR}/src/server/endpoint/grpc_proto;${PROJECT_SOURCE_DIR}/src/server/common;${PROJECT_SOURCE_DIR}/src/server/endpoint/engine_wrapper;${PROJECT_SOURCE_DIR}/src/server/endpoint/common_wrapper;${PROJECT_SOURCE_DIR}/tests/dlt/ut/server/utils;${PROJECT_SOURCE_DIR}/src/server/include")

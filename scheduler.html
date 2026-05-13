@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>调度器 · MindIE-LLM Wiki</title>
+<meta name="description" content="调度器 — MindIE-LLM Wiki">
+<link rel="icon" href="assets/img/favicon.ico">
+<link rel="stylesheet" href="assets/css/wiki.css">
+</head>
+<body>
+<header class="site-header">
+  <a class="brand" href="index.html">
+    <img src="assets/img/ascend-logo.png" alt="Ascend">
+    <span>MindIE-<span class="accent">LLM</span> Wiki</span>
+  </a>
+  <div class="header-spacer"></div>
+  <nav class="header-links">
+    <a href="https://github.com/Lyr-GW/MindIE-LLM" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://gitcode.com/Ascend/MindIE-LLM" target="_blank" rel="noopener">GitCode</a>
+    <a href="https://www.hiascend.com/" target="_blank" rel="noopener">昇腾社区</a>
+  </nav>
+  <button class="theme-toggle" type="button">☾ 暗色</button>
+  <button class="menu-toggle" type="button" aria-label="菜单">☰</button>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <input class="sidebar-filter" placeholder="筛选目录…" aria-label="筛选目录">
+    <nav>
+      <div class="nav-group">
+        <div class="nav-group-title">入门</div>
+        <ul>
+          <li><a href="index.html">首页</a></li>
+          <li><a href="introduction.html">项目简介</a></li>
+          <li><a href="quick-start.html">快速入门</a></li>
+          <li><a href="installation.html">安装与编译</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">架构与内核</div>
+        <ul>
+          <li><a href="architecture.html">架构总览</a></li>
+          <li><a href="directory.html">目录结构</a></li>
+          <li><a href="server-api.html">服务端与 API</a></li>
+          <li><a href="cpp-engine.html">C++ 引擎内核</a></li>
+          <li><a href="scheduler.html">调度器</a></li>
+          <li><a href="block-manager.html">KV Cache &amp; Block</a></li>
+          <li><a href="python-runtime.html">Python 推理框架</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">特性</div>
+        <ul>
+          <li><a href="features.html">特性总览（索引）</a></li>
+          <li><a href="quantization.html">量化特性</a></li>
+          <li><a href="parallelism.html">并行策略</a></li>
+          <li><a href="acceleration.html">加速特性</a></li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-0" aria-expanded="false"><span>基础并行</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-0">
+          <li><a href="features/multi-lora.html">Multi-LoRA</a></li>
+          <li><a href="features/moe.html">MoE</a></li>
+          <li><a href="features/mla.html">MLA</a></li>
+          <li><a href="features/expert-load-balance.html">EPLB 负载均衡</a></li>
+          <li><a href="features/shared-expert.html">共享专家外置</a></li>
+          <li><a href="features/expert-parallel.html">Expert Parallel</a></li>
+          <li><a href="features/data-parallel.html">Data Parallel</a></li>
+          <li><a href="features/tensor-parallel.html">Tensor Parallel</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-1" aria-expanded="false"><span>量化</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-1">
+          <li><a href="features/anti-outlier.html">离群值抑制</a></li>
+          <li><a href="features/pdmix-quant.html">PD MIX 量化</a></li>
+          <li><a href="features/w8a8.html">W8A8</a></li>
+          <li><a href="features/w4a8.html">W4A8 混合</a></li>
+          <li><a href="features/w8a16.html">W8A16</a></li>
+          <li><a href="features/attention-quant.html">Attention 量化</a></li>
+          <li><a href="features/fa3-quant.html">FA3 量化</a></li>
+          <li><a href="features/kv-int8.html">KV Cache Int8</a></li>
+          <li><a href="features/w8a8sc.html">W8A8SC 稀疏</a></li>
+          <li><a href="features/w16a16sc.html">W16A16SC 稀疏</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-2" aria-expanded="false"><span>长序列</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-2">
+          <li><a href="features/context-parallel.html">Context Parallel</a></li>
+          <li><a href="features/sequence-parallel.html">Sequence Parallel</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-3" aria-expanded="false"><span>调度</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-3">
+          <li><a href="features/async-scheduling.html">异步调度</a></li>
+          <li><a href="features/splitfuse.html">SplitFuse</a></li>
+          <li><a href="features/slo-scheduling.html">SLO 调度优化</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-4" aria-expanded="false"><span>加速</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-4">
+          <li><a href="features/micro-batch.html">Micro Batch</a></li>
+          <li><a href="features/speculative-decoding.html">投机解码 / Lookahead</a></li>
+          <li><a href="features/mtp.html">MTP</a></li>
+          <li><a href="features/prefix-cache.html">Prefix Cache</a></li>
+          <li><a href="features/kv-cache-pool.html">KV Cache 池化</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-5" aria-expanded="false"><span>交互与其他</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-5">
+          <li><a href="features/function-call.html">Function Call</a></li>
+          <li><a href="features/reasoning.html">思考解析与预算</a></li>
+          <li><a href="features/structured-output.html">结构化输出</a></li>
+          <li><a href="features/offline-weight.html">权重离线切分</a></li>
+          </ul>
+        </li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">开发</div>
+        <ul>
+          <li><a href="development.html">开发与贡献</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">参考</div>
+        <ul>
+          <li><a href="faq.html">常见问题</a></li>
+          <li><a href="references.html">参考资料</a></li>
+        </ul>
+      </div>
+    </nav>
+  </aside>
+
+  <main class="content">
+    <nav class="breadcrumb">
+      <a href="index.html">首页</a><span class="sep">›</span><span>架构与内核</span><span class="sep">›</span><span>调度器</span>
+    </nav>
+    <article>
+      <h1>调度器</h1>
+      <p class="lead">调度器决定 <em>哪些请求</em> 在 <em>哪一轮</em> 以 <em>什么 batch</em> 进入推理 —
+      是 LLM 推理服务吞吐 / 时延 / SLO 达成率的中枢。本章把
+      <span class="path">src/scheduler/</span> 整个目录从「请求队列」到「策略 / 时延预测器 /
+      Preempt」全部讲清楚，并附关键源码片段。</p>
+
+      <h2 id="goals">1. 调度要回答的四个问题</h2>
+      <ol>
+        <li><strong>什么时候进入推理？</strong>新到达的请求进等待队列，组什么样的 batch
+          再下发？</li>
+        <li><strong>谁优先？</strong>FCFS、PDDS、Layerwise 等策略有什么差别？</li>
+        <li><strong>显存够不够？</strong>每轮组 batch 都要问 block_manager。</li>
+        <li><strong>SLO 风险吗？</strong>如果加入这个请求会让在飞请求超时怎么办？</li>
+      </ol>
+
+      <h2 id="queues">2. 三个并发队列 + 一张 transferring 表</h2>
+      <p>看 <span class="path">src/scheduler/scheduler.h</span> 中 <code>Scheduler</code> 类成员：</p>
+      <pre data-lang="cpp"><code>// 摘自 scheduler.h（精简注释）
+ConcurrentDeque&lt;SequenceGroupSPtr&gt; waiting_;     // 待 prefill / 待拉 KV 的请求
+ConcurrentDeque&lt;SequenceGroupSPtr&gt; running_;     // 已分到 KV、正在 decode 的请求
+ConcurrentDeque&lt;SequenceGroupSPtr&gt; swapped_;     // KV 被换到 CPU 的请求
+ConcurrentMap&lt;SequenceId, SequenceGroupSPtr&gt; transferringMap_;  // 正在跨节点拉 KV</code></pre>
+      <p>「一切请求都在某个队列里」是理解调度器的第一原则。<code>Scheduler::Schedule()</code>
+      每轮做的事：把 <code>waiting</code> / <code>running</code> / <code>swapped</code> 的当前快照
+      喂给策略，由策略决定本轮 batch；<strong>原始队列仍是 concurrent，主线程仍能接收新请求</strong>。</p>
+
+      <h2 id="round">3. 一轮调度的全景</h2>
+      <pre class="ascii-art">
+   ┌────────────────────────────────────────────────────────────────┐
+   │ Scheduler::Schedule()                                          │
+   │                                                                │
+   │  ① DecidePDPriority()  → 决定本轮是 PrefillFirst/DecodeFirst/Mix │
+   │                                                                │
+   │  ② PrepCandidatesForPolicy()  → 把并发队列拷贝到策略私有 deque    │
+   │                                                                │
+   │  ③ policy.Apply(budget, candidates)                           │
+   │       ├── ApplyToWaitingQueue()    挑可 prefill 的请求          │
+   │       ├── ApplyToRunningQueue()    挑能继续 decode 的请求       │
+   │       ├── ApplyToSwappedQueue()    swap-in 等待回 NPU 的请求    │
+   │       └── 受 SchedulingBudget 约束（token / seq）              │
+   │                                                                │
+   │  ④ BackfillConcurrentQueue()  → 把未选中的请求放回原队列        │
+   │                                                                │
+   │  ⑤ ConvertToSchedulerOutput() → 给执行器一个可下发的 SchedulerOut │
+   │                                                                │
+   │  ⑥ RecordMetricsStatics()    → 输出 metrics                    │
+   └────────────────────────────────────────────────────────────────┘
+</pre>
+
+      <h2 id="budget">4. SchedulingBudget — 本轮的「钱包」</h2>
+      <p>预算决定本轮最多吃多少 token / 多少 seq。看
+      <span class="path">src/sequence/scheduling_budget.cpp</span>：</p>
+      <pre data-lang="cpp"><code>// 精简自 SchedulingBudget
+class SchedulingBudget {
+    size_t maxNumSeqs_;                  // ≤ maxBatchSize
+    size_t maxNumBatchedTokens_;         // ≤ maxPrefillTokens
+    size_t numCurSeqs_       = 0;
+    size_t numBatchedTokens_ = 0;
+
+    bool CanSchedule(size_t newTokens, size_t newSeqs) const {
+        return numBatchedTokens_ + newTokens &lt;= maxNumBatchedTokens_
+            &amp;&amp; numCurSeqs_      + newSeqs   &lt;= maxNumSeqs_;
+    }
+    void AddNumBatchedTokens(RequestId&amp; r, size_t n, size_t cached);
+    void AddNumSeqs        (RequestId&amp; r, size_t n);
+};</code></pre>
+      <p>策略在挑请求时会反复问 <code>budget.CanSchedule(...)</code>，命中即停。
+      Chunked Prefill 模式下 budget 还会维护
+      <code>partialPrefillOccupiedBudgetPerSlot_</code>：动态决定每个并发 prefill
+      占多少 token 配额，避免长 prompt 把整轮配额吃光。</p>
+
+      <h2 id="policy-iface">5. 策略统一接口</h2>
+      <p><span class="path">src/scheduler/policy/policy.h</span> 定义全部策略要实现的接口：</p>
+      <pre data-lang="cpp"><code>// 摘自 policy.h（精简）
+struct PolicyOutput {
+    std::deque&lt;SequenceGroupSPtr&gt;            withdrewSeqGroups_;     // 退回原队列
+    std::vector&lt;SequenceGroupSPtr&gt;           preemptedSeqGroups_;   // 被驱逐
+    std::vector&lt;ScheduledSequenceGroupSPtr&gt;  prefillSeqGroups_;     // 本轮 prefill
+    std::vector&lt;ScheduledSequenceGroupSPtr&gt;  decodeSeqGroups_;      // 本轮 decode
+    std::vector&lt;SequenceGroupSPtr&gt;           swappedOutSeqGroups_;
+    std::vector&lt;SequenceGroupSPtr&gt;           ignoredSeqGroups_;     // 永远拒绝
+    std::vector&lt;std::pair&lt;BlockId,BlockId&gt;&gt;  blocksToSwapIn_;
+    std::vector&lt;std::pair&lt;BlockId,BlockId&gt;&gt;  blocksToSwapOut_;
+    std::vector&lt;std::pair&lt;BlockId,BlockId&gt;&gt;  blocksToCopy_;          // CoW
+    size_t numPrefillGroups{0}, numBatchedTokens{0}, numPreempted{0};
+};
+
+class Policy {
+public:
+    virtual PolicyOutput Apply(SchedulingBudget&amp; budget,
+                               std::shared_ptr&lt;SeqGroupCollection&gt;&amp; collection) = 0;
+    bool newRequestFirst_{false};
+};</code></pre>
+      <p>策略输出不是 raw token，而是「哪些 seq group 进 batch、哪些 KV block 要 swap / copy」
+      这种调度层语义；后续由 <code>Scheduler::ConvertToSchedulerOutput()</code> 翻译为执行器
+      消费的格式。</p>
+
+      <h2 id="fcfs">6. FcfsPolicy — 最常用的实现</h2>
+      <p><span class="path">scheduler/policy/fcfs_policy.cpp</span> 是「First-Come-First-Serve」
+      的实现，但<strong>不是简单 FIFO</strong>。它根据 <code>pdPriorityType</code>
+      切换三种调度模式：</p>
+      <pre data-lang="cpp"><code>// 精简自 FcfsPolicy::Apply
+PolicyOutput FcfsPolicy::Apply(SchedulingBudget&amp; budget, ISeqGroupCollectionSPtr&amp; collection) {
+    PreprocessCollection(collection);
+    switch (collection-&gt;pdPriorityType_) {
+        case PDPriorityType::PREFILL_FIRST: return SchedulePrefill(budget);
+        case PDPriorityType::DECODE_FIRST:  return ScheduleDecode(budget);
+        case PDPriorityType::MIX:           return ScheduleChunkedPrefill(budget);
+        default: throw std::runtime_error("...");
+    }
+}</code></pre>
+      <p>三种模式的差异：</p>
+      <ul>
+        <li><strong>PREFILL_FIRST</strong>：只动 waiting 队列，做整段 prefill。决策最简单，
+          适合纯 prefill 实例（PD 分离的 P 端）。</li>
+        <li><strong>DECODE_FIRST</strong>：先动 running 队列把 decode 排满；只有当 running
+          没有发生 preempt / swap 时，才尝试 swap-in。适合 D 端。</li>
+        <li><strong>MIX</strong>（chunked prefill）：先动 running，再动 waiting；
+          先生成
+          <code>Statistics4PartialPrefill</code> 决定可同时进行的 partial prefill 数量，
+          做到「decode 与 chunk-prefill 同 step 执行」。</li>
+      </ul>
+
+      <h2 id="pdds">7. PDDSPolicy — PD 分离场景</h2>
+      <p><span class="path">policy/pdds_policy.cpp</span> 继承自 <code>FcfsPolicy</code>，
+      根据本实例 <em>角色</em>（P/D）选择路径：</p>
+      <pre data-lang="cpp"><code>// 精简自 PDDSPolicy::Apply
+PolicyOutput PDDSPolicy::Apply(SchedulingBudget&amp; budget, std::shared_ptr&lt;SeqGroupCollection&gt;&amp; col) {
+    PreprocessCollection(col);
+    switch (role_) {
+        case Role::P:
+            if (schedulerConfig_-&gt;enableChunkedPrefill) return ScheduleChunkedPrefill(budget);
+            return SchedulePrefill(budget);
+        case Role::D:
+            return ScheduleDecode(budget);
+        default: throw std::runtime_error("...");
+    }
+}</code></pre>
+      <p>同一个仓库还在该文件里实现了 <code>KVTransferSchedulePolicy</code> — D 端用来从 P 端
+      <em>拉 KV</em> 的调度策略。它做的事情：</p>
+      <ol>
+        <li>从 waiting 队列取 seqGroup；</li>
+        <li>检查 NPU 还剩多少 free block，预留
+          <code>PRESERVED_FACTOR_FOR_DECODE × totalBlocks</code> 给 decode；</li>
+        <li>调用 <code>blockManager_-&gt;CanAllocate</code> 决定 OK / LATER / NEVER；</li>
+        <li>调用 <code>budget.CanSchedule</code> 终判；</li>
+        <li>分配 KV，把请求放入 <code>pullSeqGroups</code> 准备从 P 端拉 KV。</li>
+      </ol>
+
+      <h2 id="layerwise">8. LayerwiseFCFS — 把 forward 切到 layer 粒度</h2>
+      <p>常规调度以「整个 model.forward()」为最小执行单元；layerwise 调度则把每一层都拿出来
+      和别的请求混排：</p>
+      <pre class="ascii-art">
+   传统：[ Req1 prefill 30 layer ][ Req2 decode 30 layer ][ Req3 decode 30 layer ]
+   LWD ：[ R1.L0 R2.L0 R3.L0 ][ R1.L1 R2.L1 R3.L1 ] … 同步推进
+</pre>
+      <p>带来的好处：</p>
+      <ul>
+        <li>长 prompt 不再阻塞短请求；</li>
+        <li>跨请求的 layer-by-layer 可调度更细，配合 LWD 专用 block manager 减少显存高峰。</li>
+      </ul>
+      <p>实现侧由 <code>LayerwiseFcfsPolicy</code> + <code>LwdSelfAttnBlockManager</code> +
+      <code>LayerwiseMixin</code>（<a href="cpp-engine.html#mixin">cpp-engine</a>）三方共同构成。</p>
+
+      <h2 id="latency">9. 时延预测器 — SLO 调度的眼睛</h2>
+      <p>看 <span class="path">scheduler/latency_predictor/latency_predictor.cpp</span>：</p>
+      <pre data-lang="cpp"><code>// 精简自 LatencyPredictor
+void LatencyPredictor::UpdateBatchStats() {
+    // 每轮调度结束后，把 batch 的实际执行时长喂给回归器
+    BatchStatsPtr s = batchStatsMap_.Get(batchId_).value();
+    s-&gt;batchSpendTimeFloat = duration_cast&lt;ms&gt;(now - s-&gt;batchStartTime).count();
+    if (s-&gt;forwardMode == ForwardMode::PREFILL) {
+        prefillRegression_.AddDataPoint(s-&gt;numBatchedTokens, s-&gt;batchSpendTimeFloat);
+        prefillLatency_.AddDataPoint(s-&gt;batchSpendTimeFloat);
+    } else {
+        decodeRegression_.AddDataPoint(s-&gt;numBatchedTokens, s-&gt;kvCacheBlockNum,
+                                       s-&gt;batchSpendTimeFloat);
+    }
+}
+
+float LatencyPredictor::PredictBatchExecTime(BatchStats&amp; s) {
+    if (s.forwardMode == ForwardMode::PREFILL)
+        return prefillRegression_.Predict(s.numBatchedTokens);
+    return decodeRegression_.Predict(s.numBatchedTokens, s.kvCacheBlockNum);
+}</code></pre>
+      <p>三个组件协作：</p>
+      <ul>
+        <li><code>prefillRegression_</code> — 输入 (token 数) → 输出 prefill 耗时。</li>
+        <li><code>decodeRegression_</code> — 输入 (batch 大小, KV block 数) → 输出 decode 耗时。</li>
+        <li><code>prefillLatency_ / decodeLatency_</code> — 滑动窗口百分位统计，用来看 P50/P99。</li>
+      </ul>
+      <p>有了它，调度器在「为吞吐组更大 batch」与「为 SLO 让一部分请求等下一轮」之间就能做加权决策。</p>
+
+      <h2 id="preempt">10. 抢占（Preemption）：当显存不够</h2>
+      <p>看 <span class="path">scheduler.h</span>：</p>
+      <pre data-lang="cpp"><code>enum class PreemptionMode : int { NONE = 0, SWAP, RECOMPUTE };</code></pre>
+      <ul>
+        <li><strong>RECOMPUTE</strong>：把序列从 running 移回 waiting，KV 直接释放；下次重新 prefill。</li>
+        <li><strong>SWAP</strong>：把序列 KV 从 NPU 搬到 CPU（需 <code>CpuNpuBlockAllocator</code>），
+          状态进入 <code>swapped_</code>；条件成熟再 swap-in。</li>
+      </ul>
+      <p><code>maxPreemptCount</code> 限制每轮最多抢占次数，避免抖动。</p>
+
+      <h2 id="metrics">11. 调度指标</h2>
+      <p>scheduler.h 顶部定义了一组原子指标 <code>SchedulerMetricsStatics</code>，
+      在每轮 <code>RecordMetricsStatics</code> 中刷新，最终经
+      <code>/metrics</code> 导出：</p>
+      <pre data-lang="cpp"><code>std::atomic&lt;uint64_t&gt; freeNpuBlockNum_, freeCpuBlockNum_;
+std::atomic&lt;uint64_t&gt; waitingRequestNum_, runningRequestNum_, swappedRequestNum_;
+std::atomic&lt;uint64_t&gt; prefillThroughput_, decodeThroughput_;
+std::atomic&lt;uint64_t&gt; cumulativePreemptCount_;
+std::atomic&lt;uint64_t&gt; allRadixMatchNum_, npuRadixMatchHitNum_; // 前缀缓存命中</code></pre>
+
+      <h2 id="config">12. 关键调优参数</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>参数</th><th>调大效果</th><th>调小效果</th></tr></thead>
+          <tbody>
+            <tr><td><code>maxPrefillBatchSize</code></td><td>吞吐 ↑ / TTFT 风险 ↑</td><td>TTFT 稳 / 吞吐 ↓</td></tr>
+            <tr><td><code>maxPrefillTokens</code></td><td>支持长 prompt 同 batch</td><td>切 chunk 概率 ↑</td></tr>
+            <tr><td><code>maxBatchSize</code></td><td>decode 吞吐 ↑ / 显存 ↑</td><td>显存安全 / TPS ↓</td></tr>
+            <tr><td><code>maxIterTimes</code></td><td>允许更长输出</td><td>提前截断保护资源</td></tr>
+            <tr><td><code>maxQueueDelayMicroseconds</code></td><td>异步聚合更激进</td><td>响应更快</td></tr>
+            <tr><td><code>maxPreemptCount</code></td><td>资源紧张时更激进抢占</td><td>抢占抖动 ↓</td></tr>
+            <tr><td><code>longPrefillTokenThreshold</code></td><td>更多请求被认为「长」</td><td>更多走快路径</td></tr>
+            <tr><td><code>maxLongPartialPrefills</code></td><td>同时进行的长 prefill 更多</td><td>队列等待更久</td></tr>
+            <tr><td><code>enableChunkedPrefill</code></td><td>开启 SplitFuse</td><td>关闭，回到 PD 顺序</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="extension">13. 扩展：实现你自己的策略</h2>
+      <ol>
+        <li>在 <code>scheduler/policy/</code> 新建 <code>my_policy.cpp/h</code>，继承 <code>Policy</code>；</li>
+        <li>实现 <code>Apply()</code>，按需复用 <code>FcfsPolicy::ApplyToWaitingQueue</code> 等
+          底层方法，或直接重写；</li>
+        <li>在 <code>policy_factory.cpp</code> 增加根据
+          <code>ScheduleConfig.templateType="MyPolicy"</code> 的实例化分支；</li>
+        <li>用 <code>SchedulingBudget</code> 控制 token / seq 上限；</li>
+        <li>对外暴露：选择性地把策略相关指标加入 <code>SchedulerMetricsStatics</code>；</li>
+        <li>在 <code>tests/dlt/scheduler/</code> 加单测。</li>
+      </ol>
+
+      <h2 id="see-also">深入了解</h2>
+      <ul>
+        <li><a href="features/async-scheduling.html">特性详解：异步调度</a></li>
+        <li><a href="features/splitfuse.html">特性详解：SplitFuse / Chunked Prefill</a></li>
+        <li><a href="features/slo-scheduling.html">特性详解：SLO 调度优化</a></li>
+        <li><a href="features/prefix-cache.html">特性详解：Prefix Cache</a> — 调度器 ↔ Block Manager 的协同</li>
+        <li><a href="block-manager.html">KV Cache &amp; Block Manager</a> — 调度器的另一半大脑</li>
+      </ul>
+
+    </article>
+
+    <footer class="page-footer">
+      <a class="pager-prev" href="cpp-engine.html">C++ 引擎内核</a>
+      <a class="pager-next" href="block-manager.html">KV Cache 与 Block</a>
+      <div class="copyright">
+        © 2025–2026 MindIE-LLM Wiki · 内容基于源码归纳，与官方文档可能存在表述差异
+      </div>
+    </footer>
+  </main>
+
+  <aside class="toc"></aside>
+</div>
+
+<script src="assets/js/wiki.js"></script>
+</body>
+</html>

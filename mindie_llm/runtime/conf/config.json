@@ -1,7 +1,0 @@
-{
-  "enable_reasoning": "false",
-  "tool_call_options": {
-    "tool_call_parser": ""
-  },
-  "chat_template": ""
-}

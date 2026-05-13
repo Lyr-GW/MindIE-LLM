@@ -1,8 +1,0 @@
-add_subdirectory(tokenizer)
-add_subdirectory(utils)
-add_subdirectory(single_req_infer_interface)
-add_subdirectory(single_llm_req_handler)
-add_subdirectory(http_wrapper)
-add_subdirectory(grpc_wrapper)
-add_subdirectory(infer_instances)
-add_subdirectory(health_checker)

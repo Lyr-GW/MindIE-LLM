@@ -1,1 +1,0 @@
-build_test(engine ut "mindie_llm_utils;mindie_engine;mindie_scheduler;dl;pybind11::embed;${PROTOBUF_SO_FILES}" "${PROJECT_SOURCE_DIR}/src/include/engine;${PROJECT_SOURCE_DIR}/src/include/executor;${Protobuf_INCLUDE_DIRS}")

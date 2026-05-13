@@ -1,1 +1,0 @@
-build_test(executor fuzz "mindie_executor;mindie_llm_utils;${PROTOBUF_SO_FILES};${PROJECT_SOURCE_DIR}/secodefuzz/examples/out-bin-x64/libSecodefuzz.so;" "${PROJECT_SOURCE_DIR}/src/include/executor;${Protobuf_INCLUDE_DIRS};${PROJECT_SOURCE_DIR}/secodefuzz/Secodefuzz;")

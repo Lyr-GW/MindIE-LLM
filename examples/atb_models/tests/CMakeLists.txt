@@ -1,8 +1,0 @@
-if(USE_UNIT_TEST)
-    add_compile_options(-Werror -Wno-error=ignored-qualifiers)
-    add_compile_options(-Werror -Wno-error=pmf-conversions)
-    add_subdirectory(unittest)
-endif()
-if(USE_FUZZ_TEST)
-    add_subdirectory(fuzztest)
-endif()

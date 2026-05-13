@@ -1,1 +1,0 @@
-build_test(llm_manager ut "mindie_llm_manager_v2;mindie_llm_manager;llm_manager_python" "")

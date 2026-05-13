@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>开发与贡献 · MindIE-LLM Wiki</title>
+<meta name="description" content="开发与贡献 — MindIE-LLM Wiki">
+<link rel="icon" href="assets/img/favicon.ico">
+<link rel="stylesheet" href="assets/css/wiki.css">
+</head>
+<body>
+<header class="site-header">
+  <a class="brand" href="index.html">
+    <img src="assets/img/ascend-logo.png" alt="Ascend">
+    <span>MindIE-<span class="accent">LLM</span> Wiki</span>
+  </a>
+  <div class="header-spacer"></div>
+  <nav class="header-links">
+    <a href="https://github.com/Lyr-GW/MindIE-LLM" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://gitcode.com/Ascend/MindIE-LLM" target="_blank" rel="noopener">GitCode</a>
+    <a href="https://www.hiascend.com/" target="_blank" rel="noopener">昇腾社区</a>
+  </nav>
+  <button class="theme-toggle" type="button">☾ 暗色</button>
+  <button class="menu-toggle" type="button" aria-label="菜单">☰</button>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <input class="sidebar-filter" placeholder="筛选目录…" aria-label="筛选目录">
+    <nav>
+      <div class="nav-group">
+        <div class="nav-group-title">入门</div>
+        <ul>
+          <li><a href="index.html">首页</a></li>
+          <li><a href="introduction.html">项目简介</a></li>
+          <li><a href="quick-start.html">快速入门</a></li>
+          <li><a href="installation.html">安装与编译</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">架构与内核</div>
+        <ul>
+          <li><a href="architecture.html">架构总览</a></li>
+          <li><a href="directory.html">目录结构</a></li>
+          <li><a href="server-api.html">服务端与 API</a></li>
+          <li><a href="cpp-engine.html">C++ 引擎内核</a></li>
+          <li><a href="scheduler.html">调度器</a></li>
+          <li><a href="block-manager.html">KV Cache &amp; Block</a></li>
+          <li><a href="python-runtime.html">Python 推理框架</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">特性</div>
+        <ul>
+          <li><a href="features.html">特性总览（索引）</a></li>
+          <li><a href="quantization.html">量化特性</a></li>
+          <li><a href="parallelism.html">并行策略</a></li>
+          <li><a href="acceleration.html">加速特性</a></li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-0" aria-expanded="false"><span>基础并行</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-0">
+          <li><a href="features/multi-lora.html">Multi-LoRA</a></li>
+          <li><a href="features/moe.html">MoE</a></li>
+          <li><a href="features/mla.html">MLA</a></li>
+          <li><a href="features/expert-load-balance.html">EPLB 负载均衡</a></li>
+          <li><a href="features/shared-expert.html">共享专家外置</a></li>
+          <li><a href="features/expert-parallel.html">Expert Parallel</a></li>
+          <li><a href="features/data-parallel.html">Data Parallel</a></li>
+          <li><a href="features/tensor-parallel.html">Tensor Parallel</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-1" aria-expanded="false"><span>量化</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-1">
+          <li><a href="features/anti-outlier.html">离群值抑制</a></li>
+          <li><a href="features/pdmix-quant.html">PD MIX 量化</a></li>
+          <li><a href="features/w8a8.html">W8A8</a></li>
+          <li><a href="features/w4a8.html">W4A8 混合</a></li>
+          <li><a href="features/w8a16.html">W8A16</a></li>
+          <li><a href="features/attention-quant.html">Attention 量化</a></li>
+          <li><a href="features/fa3-quant.html">FA3 量化</a></li>
+          <li><a href="features/kv-int8.html">KV Cache Int8</a></li>
+          <li><a href="features/w8a8sc.html">W8A8SC 稀疏</a></li>
+          <li><a href="features/w16a16sc.html">W16A16SC 稀疏</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-2" aria-expanded="false"><span>长序列</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-2">
+          <li><a href="features/context-parallel.html">Context Parallel</a></li>
+          <li><a href="features/sequence-parallel.html">Sequence Parallel</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-3" aria-expanded="false"><span>调度</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-3">
+          <li><a href="features/async-scheduling.html">异步调度</a></li>
+          <li><a href="features/splitfuse.html">SplitFuse</a></li>
+          <li><a href="features/slo-scheduling.html">SLO 调度优化</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-4" aria-expanded="false"><span>加速</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-4">
+          <li><a href="features/micro-batch.html">Micro Batch</a></li>
+          <li><a href="features/speculative-decoding.html">投机解码 / Lookahead</a></li>
+          <li><a href="features/mtp.html">MTP</a></li>
+          <li><a href="features/prefix-cache.html">Prefix Cache</a></li>
+          <li><a href="features/kv-cache-pool.html">KV Cache 池化</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-5" aria-expanded="false"><span>交互与其他</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-5">
+          <li><a href="features/function-call.html">Function Call</a></li>
+          <li><a href="features/reasoning.html">思考解析与预算</a></li>
+          <li><a href="features/structured-output.html">结构化输出</a></li>
+          <li><a href="features/offline-weight.html">权重离线切分</a></li>
+          </ul>
+        </li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">开发</div>
+        <ul>
+          <li><a href="development.html">开发与贡献</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">参考</div>
+        <ul>
+          <li><a href="faq.html">常见问题</a></li>
+          <li><a href="references.html">参考资料</a></li>
+        </ul>
+      </div>
+    </nav>
+  </aside>
+
+  <main class="content">
+    <nav class="breadcrumb">
+      <a href="index.html">首页</a><span class="sep">›</span><span>开发</span><span class="sep">›</span><span>开发与贡献</span>
+    </nav>
+    <article>
+      <h1>开发与贡献</h1>
+      <p class="lead">如果你打算修改 MindIE-LLM、为它实现新特性、或者把自家模型适配进来，
+      本章给出代码规范、构建测试、PR 流程的完整指引。</p>
+
+      <h2 id="env">开发环境</h2>
+      <ol>
+        <li><strong>推荐方式</strong>：在仓库的 <code>.devcontainer/</code> 里启动 VS Code Dev Container —
+        预装 CANN、ATB、g++、cmake、pre-commit。</li>
+        <li><strong>本地手搭</strong>：参考 <a href="installation.html#source">源码编译</a> 章节，
+        装齐 CANN / ATB / Python 3.11 / g++ ≥ 9 / CMake ≥ 3.20。</li>
+        <li><strong>NPU 与硬件</strong>：开发环境最好带至少 1 张 NPU；纯算法 / 工具开发可以
+        无 NPU 但需要 mock 设备。</li>
+      </ol>
+
+      <h2 id="style">代码风格</h2>
+
+      <h3 id="cpp-style">C++ 规范</h3>
+      <p>仓库根目录提供 <code>.clang-format</code> 与 <code>style.cfg</code>，pre-commit 会自动检查。
+      关键约定：</p>
+      <ul>
+        <li><strong>命名</strong>
+          <ul>
+            <li>类 / 结构体：<code>PascalCase</code>（如 <code>LLMEngine</code>）</li>
+            <li>方法 / 局部变量：<code>camelCase</code>（如 <code>scheduleNext()</code>）</li>
+            <li>常量 / 宏：<code>SCREAMING_SNAKE_CASE</code>（如 <code>MAX_BATCH_SIZE</code>）</li>
+            <li>成员变量：<code>m_</code> 或 <code>_</code> 前缀（如 <code>m_blockManager</code>）</li>
+            <li>枚举：<code>enum class</code>，强类型</li>
+          </ul>
+        </li>
+        <li><strong>语言特性</strong>
+          <ul>
+            <li>优先 <code>auto</code> / range-based for / 智能指针</li>
+            <li>资源管理一律 RAII；不要 <code>new/delete</code></li>
+            <li>所有权用 <code>unique_ptr</code>，共享用 <code>shared_ptr</code>，弱引用 <code>weak_ptr</code></li>
+            <li>类型安全替代：<code>std::optional</code> / <code>std::variant</code> / <code>std::any</code></li>
+            <li>编译期能算的用 <code>constexpr</code></li>
+            <li>只读字符串用 <code>std::string_view</code></li>
+            <li>禁用 C 风格强转，改用 <code>static_cast</code> / <code>dynamic_cast</code> /
+            <code>reinterpret_cast</code>；明确 <code>const</code></li>
+          </ul>
+        </li>
+        <li><strong>错误处理</strong>：边界使用异常（<code>std::runtime_error</code>、
+        <code>std::invalid_argument</code>），核心路径辅以错误码；统一通过日志库（spdlog 风格）
+        记录 ERROR / WARN。</li>
+        <li><strong>头文件</strong>：接口与实现分离；公共接口放 <span class="path">src/include/</span>。</li>
+        <li><strong>性能</strong>：避免不必要堆分配；移动语义 <code>std::move</code>；
+        热路径用 <code>&lt;algorithm&gt;</code>。</li>
+      </ul>
+
+      <h3 id="py-style">Python 规范</h3>
+      <ul>
+        <li>遵循 PEP8；缩进 4 空格；行宽 ≤ 120。</li>
+        <li>类型注解必须有：参数 / 返回值。</li>
+        <li>避免裸 <code>except</code>；用具体异常类型。</li>
+        <li>日志用 <code>mindie_llm.utils.logger</code>，禁用 <code>print</code>。</li>
+        <li>张量维度注释（<code># [B, S, H]</code>）有助于审阅。</li>
+      </ul>
+
+      <h2 id="precommit">pre-commit 钩子</h2>
+      <pre data-lang="bash"><code>pip install pre-commit
+pre-commit install
+pre-commit run --all-files   # 第一次跑跑看</code></pre>
+      <p>钩子覆盖：clang-format、isort、black、flake8、行尾空格、禁用 secret 等。
+      详见 <code>.pre-commit-config.yaml</code> 与 <code>pre-commit/</code>。</p>
+
+      <h2 id="build">构建</h2>
+      <p>详见 <a href="installation.html#source">安装与编译</a>。开发常用命令：</p>
+      <pre data-lang="bash"><code># 仅构建 src 增量（最快）
+bash scripts/build_src.sh
+
+# 编辑安装 Python 包（改 .py 立即生效）
+pip install -e .
+
+# 重启服务
+mindie_llm_server</code></pre>
+
+      <h2 id="testing">测试</h2>
+
+      <h3 id="cpp-tests">C++ 测试</h3>
+      <ul>
+        <li><strong><code>tests/dlt</code></strong>：数据 / 张量 / block_manager / scheduler 等模块的单测。
+        基于 GTest，构建后用 <code>ctest</code> 或直接执行二进制。</li>
+        <li><strong><code>tests/fuzztest_llmmanager</code></strong>：针对 LLM Manager 的模糊测试，
+        随机化输入找崩溃 / 内存错误。</li>
+      </ul>
+
+      <h3 id="py-tests">Python 测试</h3>
+      <ul>
+        <li><strong><code>tests/pythontest</code></strong>：基于 pytest。</li>
+        <li>跑全套：
+          <pre data-lang="bash"><code>pip install -r tests/requirements.txt
+bash tests/run_all_tests.sh</code></pre>
+        </li>
+        <li>跑单个用例：
+          <pre data-lang="bash"><code>pytest tests/pythontest/path/to/test_xxx.py -k 'test_case' -s</code></pre>
+        </li>
+      </ul>
+
+      <h3 id="bench">端到端基准</h3>
+      <p>参考 <a href="quick-start.html#bench">快速入门</a> 中的 AISBench 流程，对接你的修改前后做精度 / 性能对比。</p>
+
+      <h2 id="extension">扩展点</h2>
+
+      <h3 id="ext-policy">新增调度策略</h3>
+      <ol>
+        <li>在 <span class="path">src/scheduler/policy/</span> 新建 <code>my_policy.cpp/h</code>，
+        继承 <code>IPolicy</code>。</li>
+        <li>在 <code>policy_factory.cpp</code> 加分支：根据
+        <code>ScheduleConfig.templateType="MyPolicy"</code> 实例化。</li>
+        <li>在 <code>tests/dlt/scheduler/</code> 增加单测。</li>
+      </ol>
+
+      <h3 id="ext-block">新增 KV 分配器</h3>
+      <ol>
+        <li>实现 <code>device_aware_block_allocator.h</code> 接口。</li>
+        <li>在 <code>self_attn_block_manager.cpp</code> 添加构造分支。</li>
+        <li>暴露指标到 <code>HitRateCalculator</code>。</li>
+      </ol>
+
+      <h3 id="ext-plugin">新增 Python 插件</h3>
+      <ol>
+        <li>在 <span class="path">mindie_llm/text_generator/plugins/</span> 新建子模块。</li>
+        <li>继承 <code>plugin.py</code> 中的 <code>Plugin</code> 接口（<code>before_forward</code> /
+        <code>after_forward</code> / <code>before_sample</code> 等钩子）。</li>
+        <li>在 <code>plugin_manager.py</code> 注册类型。</li>
+        <li>通过 <code>config.json → ModelConfig.pluginParams.&lt;name&gt;.enable=true</code> 启用。</li>
+      </ol>
+
+      <h3 id="ext-protocol">新增 endpoint 协议</h3>
+      <ol>
+        <li>在 <span class="path">src/server/endpoint/</span> 新增 <code>my_proto_wrapper</code>。</li>
+        <li>实现请求解码 / 响应编码。</li>
+        <li>在 <code>endpoint.cpp</code> 注册 URL 路由。</li>
+        <li>更新 <a href="server-api.html#api-matrix">API 矩阵</a> 与文档。</li>
+      </ol>
+
+      <h2 id="branches">分支与提交规范</h2>
+      <ul>
+        <li><strong>主分支</strong>：<code>master</code> — 稳定版本，发布出口。</li>
+        <li><strong>开发分支</strong>：<code>dev</code> — 日常合入；新特性建议从 <code>dev</code> 拉分支。</li>
+        <li><strong>版本分支</strong>：<code>v3.0.0.beta.x</code> 等，发布前的稳定化分支。</li>
+        <li><strong>特性分支命名</strong>：<code>feat/&lt;description&gt;</code> /
+        <code>fix/&lt;issue-id&gt;</code> / <code>doc/&lt;topic&gt;</code>。</li>
+      </ul>
+      <p><strong>commit message</strong> 推荐 Conventional Commits 风格：</p>
+      <pre data-lang="text"><code>feat(scheduler): add layerwise FCFS policy
+fix(block_manager): correct ref count on swap
+doc(wiki): add architecture overview
+perf(quant): fuse W8A8 dequant with matmul</code></pre>
+
+      <h2 id="pr">PR 流程</h2>
+      <ol>
+        <li>Fork 上游仓库（<a href="https://gitcode.com/Ascend/MindIE-LLM" target="_blank" rel="noopener">GitCode</a>）。</li>
+        <li>本地 clone，从 <code>dev</code> 拉特性分支。</li>
+        <li>实现并补单测；本地跑 <code>pre-commit run --all-files</code> + 相关单测全过。</li>
+        <li>提交、推送至 fork。</li>
+        <li>在 GitCode 上发 PR，标题用 Conventional Commits 格式；
+        正文描述：动机 / 设计 / 兼容性 / 测试。</li>
+        <li>等待 CI 通过 + 至少 1 名 Committer 检视。</li>
+        <li>评审意见落实 → 重新提交（rebase 优于 merge）。</li>
+        <li>获得足够 Approvals → CI 自动合入。</li>
+      </ol>
+
+      <h2 id="security">安全</h2>
+      <ul>
+        <li>不要在代码 / 日志 / commit message 中带任何 token、密钥、内部 URL。</li>
+        <li>发现安全漏洞请<strong>不要</strong>在 issue 公开，按 <code>security.md</code> 的流程
+        通过邮件联系核心维护者。</li>
+        <li>修改加密 / 鉴权 / 网络相关代码时，必须经过资深维护者评审。</li>
+      </ul>
+
+      <h2 id="docs">文档</h2>
+      <ul>
+        <li>用户面向变更 → 同步更新 <span class="path">docs/zh/user_guide/</span>。</li>
+        <li>架构 / 设计变更 → 同步更新 <span class="path">docs/zh/developer_guide/</span>。</li>
+        <li>本 Wiki 是非官方知识库，可作为内部参考；如有同步必要，请额外更新本目录。</li>
+      </ul>
+
+      <h2 id="checklist">PR 自检清单</h2>
+      <ul>
+        <li>✅ 改动在 <code>dev</code> 分支衍生；commit message 规范</li>
+        <li>✅ <code>pre-commit run --all-files</code> 通过</li>
+        <li>✅ 新增 / 修改的代码有相应单测</li>
+        <li>✅ 涉及 <code>config.json</code> 字段的变更有 <code>param_checker</code> 校验</li>
+        <li>✅ 文档同步（<code>docs/zh/...</code> 与本 Wiki）</li>
+        <li>✅ 兼容性影响在 PR 描述中标明</li>
+        <li>✅ 没有遗留 <code>TODO</code> / 注释掉的代码 / 调试 print</li>
+      </ul>
+
+    </article>
+
+    <footer class="page-footer">
+      <a class="pager-prev" href="acceleration.html">加速特性</a>
+      <a class="pager-next" href="faq.html">常见问题</a>
+      <div class="copyright">
+        © 2025–2026 MindIE-LLM Wiki · 内容基于源码归纳，与官方文档可能存在表述差异
+      </div>
+    </footer>
+  </main>
+
+  <aside class="toc"></aside>
+</div>
+
+<script src="assets/js/wiki.js"></script>
+</body>
+</html>
