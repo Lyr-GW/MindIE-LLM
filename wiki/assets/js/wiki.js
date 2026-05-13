@@ -159,7 +159,26 @@
     });
   }
 
-  // ===== 6. 移动端汉堡菜单 =====
+  // ===== 6.5 侧栏二级折叠 =====
+  function initSubGroups() {
+    var toggles = document.querySelectorAll('.sidebar .nav-sub-toggle');
+    toggles.forEach(function (btn) {
+      var listId = btn.getAttribute('aria-controls');
+      var list = listId && document.getElementById(listId);
+      if (!list) return;
+      // 当前页若位于该子组则默认展开
+      var hasActive = list.querySelector('a.active');
+      var open = !!hasActive;
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      list.classList.toggle('open', open);
+      btn.addEventListener('click', function () {
+        var nowOpen = list.classList.toggle('open');
+        btn.setAttribute('aria-expanded', nowOpen ? 'true' : 'false');
+      });
+    });
+  }
+
+  // ===== 7. 移动端汉堡菜单 =====
   function initMenuToggle() {
     var btn = document.querySelector('.menu-toggle');
     var sidebar = document.querySelector('.sidebar');
@@ -185,6 +204,7 @@
     buildToc();
     addCopyButtons();
     initSidebarFilter();
+    initSubGroups();
     initMenuToggle();
   });
 })();

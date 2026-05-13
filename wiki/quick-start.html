@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>快速入门 · MindIE-LLM Wiki</title>
-<meta name="description" content="快速入门 — MindIE-LLM Wiki（华为昇腾大语言模型推理引擎）">
+<meta name="description" content="快速入门 — MindIE-LLM Wiki">
 <link rel="icon" href="assets/img/favicon.ico">
 <link rel="stylesheet" href="assets/css/wiki.css">
 </head>
@@ -52,10 +52,72 @@
       <div class="nav-group">
         <div class="nav-group-title">特性</div>
         <ul>
-          <li><a href="features.html">特性总览</a></li>
+          <li><a href="features.html">特性总览（索引）</a></li>
           <li><a href="quantization.html">量化特性</a></li>
           <li><a href="parallelism.html">并行策略</a></li>
           <li><a href="acceleration.html">加速特性</a></li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-0" aria-expanded="false"><span>基础并行</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-0">
+          <li><a href="features/multi-lora.html">Multi-LoRA</a></li>
+          <li><a href="features/moe.html">MoE</a></li>
+          <li><a href="features/mla.html">MLA</a></li>
+          <li><a href="features/expert-load-balance.html">EPLB 负载均衡</a></li>
+          <li><a href="features/shared-expert.html">共享专家外置</a></li>
+          <li><a href="features/expert-parallel.html">Expert Parallel</a></li>
+          <li><a href="features/data-parallel.html">Data Parallel</a></li>
+          <li><a href="features/tensor-parallel.html">Tensor Parallel</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-1" aria-expanded="false"><span>量化</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-1">
+          <li><a href="features/anti-outlier.html">离群值抑制</a></li>
+          <li><a href="features/pdmix-quant.html">PD MIX 量化</a></li>
+          <li><a href="features/w8a8.html">W8A8</a></li>
+          <li><a href="features/w4a8.html">W4A8 混合</a></li>
+          <li><a href="features/w8a16.html">W8A16</a></li>
+          <li><a href="features/attention-quant.html">Attention 量化</a></li>
+          <li><a href="features/fa3-quant.html">FA3 量化</a></li>
+          <li><a href="features/kv-int8.html">KV Cache Int8</a></li>
+          <li><a href="features/w8a8sc.html">W8A8SC 稀疏</a></li>
+          <li><a href="features/w16a16sc.html">W16A16SC 稀疏</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-2" aria-expanded="false"><span>长序列</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-2">
+          <li><a href="features/context-parallel.html">Context Parallel</a></li>
+          <li><a href="features/sequence-parallel.html">Sequence Parallel</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-3" aria-expanded="false"><span>调度</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-3">
+          <li><a href="features/async-scheduling.html">异步调度</a></li>
+          <li><a href="features/splitfuse.html">SplitFuse</a></li>
+          <li><a href="features/slo-scheduling.html">SLO 调度优化</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-4" aria-expanded="false"><span>加速</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-4">
+          <li><a href="features/micro-batch.html">Micro Batch</a></li>
+          <li><a href="features/speculative-decoding.html">投机解码 / Lookahead</a></li>
+          <li><a href="features/mtp.html">MTP</a></li>
+          <li><a href="features/prefix-cache.html">Prefix Cache</a></li>
+          <li><a href="features/kv-cache-pool.html">KV Cache 池化</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-5" aria-expanded="false"><span>交互与其他</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-5">
+          <li><a href="features/function-call.html">Function Call</a></li>
+          <li><a href="features/reasoning.html">思考解析与预算</a></li>
+          <li><a href="features/structured-output.html">结构化输出</a></li>
+          <li><a href="features/offline-weight.html">权重离线切分</a></li>
+          </ul>
+        </li>
         </ul>
       </div>
       <div class="nav-group">
