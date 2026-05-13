@@ -1,0 +1,106 @@
+---
+title: W8A16 量化
+---
+      <h1>W8A16 量化</h1>
+      <p class="lead">仅把<strong>权重量化为 INT8</strong>，激活保持 FP16/BF16。
+      在精度损失最小的前提下显著降低权重体积，是「精度优先」量化方案的代表。</p>
+
+      <h2 id="when">什么时候选 W8A16</h2>
+      <ul>
+        <li>对评测精度极敏感（对话、考试题、医疗 / 法律等）。</li>
+        <li>显存压力主要来自<strong>权重</strong>而不是 KV Cache。</li>
+        <li>部署平台只支持 W8A16（如 Atlas 800I A2 推理服务器）。</li>
+      </ul>
+
+      <h2 id="principle">原理</h2>
+      <p>逐通道（per-channel）对权重 <code>W ∈ fp16 [n,k]</code> 做对称量化，得到：</p>
+      <pre data-lang="text"><code>weight        : int8     shape [n,k]
+weight_scale  : fp32     shape [n,1]
+weight_offset : fp32     shape [n,1]      // 一般为 0（对称）
+
+y = (Wq * weight_scale + weight_offset) · x  + b</code></pre>
+      <p>由于激活是浮点，没有激活量化的精度损失；仅有权重量化误差，per-channel 粒度也能很好抑制。</p>
+
+      <h2 id="weights">权重布局</h2>
+      <pre data-lang="text"><code>├─ config.json
+├─ quant_model_description.json
+└─ quant_model_weight_w8a16.safetensors</code></pre>
+      <pre data-lang="json"><code>// quant_model_description.json
+{
+  "model_quant_type": "W8A16",
+  "model.embed_tokens.weight": "FLOAT",
+  "model.layers.0.self_attn.q_proj.weight":        "W8A16",
+  "model.layers.0.self_attn.q_proj.weight_scale":  "W8A16",
+  "model.layers.0.self_attn.q_proj.weight_offset": "W8A16"
+}</code></pre>
+
+      <p>张量 shape / dtype（原 fp16）：</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>张量</th><th>weight</th><th>weight_scale</th><th>weight_offset</th><th>bias</th></tr></thead>
+          <tbody>
+            <tr><td>dtype</td><td>int8</td><td>fp32</td><td>fp32</td><td>fp16</td></tr>
+            <tr><td>shape</td><td>[n,k]</td><td>[n,1]</td><td>[n,1]</td><td>[n]</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="impl">推理时数据流</h2>
+      <pre class="ascii-art">
+   Wq (int8)──┬─ * weight_scale + weight_offset ──→ W' (fp16) ─┐
+                                                              ├─ matmul_fp16 ─→ y
+                                       x (fp16) ───────────────┘
+</pre>
+      <p>由于 matmul 仍是 fp16，单步算力<strong>不会</strong>超 fp16 baseline；收益主要在权重读取
+      带宽：从 fp16 16 bit/参数 降到 8 bit/参数。</p>
+
+      <h2 id="enable">如何开启</h2>
+      <pre data-lang="bash"><code># 生成量化权重
+msmodelslim quant \
+  --model_path /home/Qwen2-72B \
+  --save_path  /home/Qwen2-72B-W8A16 \
+  --device     npu \
+  --model_type Qwen2-72B \
+  --quant_type w8a16 \
+  --trust_remote_code True</code></pre>
+      <pre data-lang="json"><code>"ModelConfig": [{
+  "modelName": "qwen2-72b-w8a16",
+  "modelWeightPath": "/home/Qwen2-72B-W8A16",
+  "worldSize": 8
+}]</code></pre>
+
+      <h2 id="benefit">收益</h2>
+      <ul>
+        <li>权重体积 ≈ 1/2，70B 模型可在 4 卡装下（fp16 通常 8 卡）。</li>
+        <li>带宽节省让 decode 阶段（访存瓶颈）速度提升 15–30%。</li>
+        <li>精度损失通常 &lt; 0.3 pp（CMMLU/MMLU 等）。</li>
+      </ul>
+
+      <h2 id="limit">已知限制</h2>
+      <ul>
+        <li>仅 Atlas 800I A2 推理服务器支持。</li>
+        <li>仅支持 LLaMA3-70B、Qwen1.5-110B、Qwen2-72B 等部分大模型。</li>
+        <li>仅支持与 <a href="anti-outlier.html">Anti-Outlier</a>、
+        <a href="kv-int8.html">KV Cache Int8</a> 配合。</li>
+        <li>与 <a href="multi-lora.html">Multi-LoRA</a> 不兼容（同 W8A8）。</li>
+        <li>仅当原 Linear 有 bias 时，量化权重才会有 bias。</li>
+      </ul>
+
+      <h2 id="vs-w8a8">W8A16 vs W8A8 选型</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>维度</th><th>W8A16</th><th>W8A8</th></tr></thead>
+          <tbody>
+            <tr><td>权重体积</td><td>≈ 1/2</td><td>≈ 1/2</td></tr>
+            <tr><td>单步算力</td><td>= fp16</td><td>≈ 2× fp16</td></tr>
+            <tr><td>精度损失</td><td>&lt; 0.3 pp</td><td>0.5–1 pp（带 Anti-Outlier）</td></tr>
+            <tr><td>典型场景</td><td>对话 / 推理评测</td><td>API / 高并发</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="ref">参考</h2>
+      <ul>
+        <li>本仓库官方文档：<code>docs/zh/user_guide/feature/w8a16.md</code></li>
+        <li>相关：<a href="w8a8.html">W8A8</a>、<a href="w4a8.html">W4A8 混合</a></li>
+      </ul>

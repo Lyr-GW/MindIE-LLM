@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FA3 量化 · MindIE-LLM Wiki</title>
+<meta name="description" content="FA3 量化 — MindIE-LLM Wiki">
+<link rel="icon" href="../assets/img/favicon.ico">
+<link rel="stylesheet" href="../assets/css/wiki.css">
+</head>
+<body>
+<header class="site-header">
+  <a class="brand" href="../index.html">
+    <img src="../assets/img/ascend-logo.png" alt="Ascend">
+    <span>MindIE-<span class="accent">LLM</span> Wiki</span>
+  </a>
+  <div class="header-spacer"></div>
+  <nav class="header-links">
+    <a href="https://github.com/Lyr-GW/MindIE-LLM" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://gitcode.com/Ascend/MindIE-LLM" target="_blank" rel="noopener">GitCode</a>
+    <a href="https://www.hiascend.com/" target="_blank" rel="noopener">昇腾社区</a>
+  </nav>
+  <button class="theme-toggle" type="button">☾ 暗色</button>
+  <button class="menu-toggle" type="button" aria-label="菜单">☰</button>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <input class="sidebar-filter" placeholder="筛选目录…" aria-label="筛选目录">
+    <nav>
+      <div class="nav-group">
+        <div class="nav-group-title">入门</div>
+        <ul>
+          <li><a href="../index.html">首页</a></li>
+          <li><a href="../introduction.html">项目简介</a></li>
+          <li><a href="../quick-start.html">快速入门</a></li>
+          <li><a href="../installation.html">安装与编译</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">架构与内核</div>
+        <ul>
+          <li><a href="../architecture.html">架构总览</a></li>
+          <li><a href="../directory.html">目录结构</a></li>
+          <li><a href="../server-api.html">服务端与 API</a></li>
+          <li><a href="../cpp-engine.html">C++ 引擎内核</a></li>
+          <li><a href="../scheduler.html">调度器</a></li>
+          <li><a href="../block-manager.html">KV Cache &amp; Block</a></li>
+          <li><a href="../python-runtime.html">Python 推理框架</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">特性</div>
+        <ul>
+          <li><a href="../features.html">特性总览（索引）</a></li>
+          <li><a href="../quantization.html">量化特性</a></li>
+          <li><a href="../parallelism.html">并行策略</a></li>
+          <li><a href="../acceleration.html">加速特性</a></li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-0" aria-expanded="false"><span>基础并行</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-0">
+          <li><a href="../features/multi-lora.html">Multi-LoRA</a></li>
+          <li><a href="../features/moe.html">MoE</a></li>
+          <li><a href="../features/mla.html">MLA</a></li>
+          <li><a href="../features/expert-load-balance.html">EPLB 负载均衡</a></li>
+          <li><a href="../features/shared-expert.html">共享专家外置</a></li>
+          <li><a href="../features/expert-parallel.html">Expert Parallel</a></li>
+          <li><a href="../features/data-parallel.html">Data Parallel</a></li>
+          <li><a href="../features/tensor-parallel.html">Tensor Parallel</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-1" aria-expanded="false"><span>量化</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-1">
+          <li><a href="../features/anti-outlier.html">离群值抑制</a></li>
+          <li><a href="../features/pdmix-quant.html">PD MIX 量化</a></li>
+          <li><a href="../features/w8a8.html">W8A8</a></li>
+          <li><a href="../features/w4a8.html">W4A8 混合</a></li>
+          <li><a href="../features/w8a16.html">W8A16</a></li>
+          <li><a href="../features/attention-quant.html">Attention 量化</a></li>
+          <li><a href="../features/fa3-quant.html">FA3 量化</a></li>
+          <li><a href="../features/kv-int8.html">KV Cache Int8</a></li>
+          <li><a href="../features/w8a8sc.html">W8A8SC 稀疏</a></li>
+          <li><a href="../features/w16a16sc.html">W16A16SC 稀疏</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-2" aria-expanded="false"><span>长序列</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-2">
+          <li><a href="../features/context-parallel.html">Context Parallel</a></li>
+          <li><a href="../features/sequence-parallel.html">Sequence Parallel</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-3" aria-expanded="false"><span>调度</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-3">
+          <li><a href="../features/async-scheduling.html">异步调度</a></li>
+          <li><a href="../features/splitfuse.html">SplitFuse</a></li>
+          <li><a href="../features/slo-scheduling.html">SLO 调度优化</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-4" aria-expanded="false"><span>加速</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-4">
+          <li><a href="../features/micro-batch.html">Micro Batch</a></li>
+          <li><a href="../features/speculative-decoding.html">投机解码 / Lookahead</a></li>
+          <li><a href="../features/mtp.html">MTP</a></li>
+          <li><a href="../features/prefix-cache.html">Prefix Cache</a></li>
+          <li><a href="../features/kv-cache-pool.html">KV Cache 池化</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-5" aria-expanded="false"><span>交互与其他</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-5">
+          <li><a href="../features/function-call.html">Function Call</a></li>
+          <li><a href="../features/reasoning.html">思考解析与预算</a></li>
+          <li><a href="../features/structured-output.html">结构化输出</a></li>
+          <li><a href="../features/offline-weight.html">权重离线切分</a></li>
+          </ul>
+        </li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">开发</div>
+        <ul>
+          <li><a href="../development.html">开发与贡献</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">参考</div>
+        <ul>
+          <li><a href="../faq.html">常见问题</a></li>
+          <li><a href="../references.html">参考资料</a></li>
+        </ul>
+      </div>
+    </nav>
+  </aside>
+
+  <main class="content">
+    <nav class="breadcrumb">
+      <a href="../index.html">首页</a><span class="sep">›</span><a href="../features.html">特性</a><span class="sep">›</span><span>FA3 量化</span>
+    </nav>
+    <article>
+      <h1>FA3 量化（FlashAttention-3 风格）</h1>
+      <p class="lead">在 <a href="attention-quant.html">Attention 量化</a> 基础上做了一项关键改动：
+      <strong>K 的非 RoPE 张量量化为 INT8、K 的 RoPE 张量保留 fp16</strong>。专为
+      DeepSeek-MLA 这类对位置编码极敏感的模型设计。</p>
+
+      <h2 id="why">为什么 RoPE 不能量化</h2>
+      <p>DeepSeek 使用 <strong>MLA</strong>（Multi-head Latent Attention）+ RoPE 位置编码。MLA 把 K
+      分成两段：</p>
+      <ul>
+        <li><code>k_nope</code>：内容部分，分布平稳、易量化。</li>
+        <li><code>k_pe</code>：经过 RoPE 旋转后的部分，每个位置对应一组 sinusoidal 振幅，
+        最大值随上下文位置漂移大，且不同 token 之间差异显著 — 量化误差会被注意力放大。</li>
+      </ul>
+      <p>所以 FA3 量化的策略是：<strong>k_nope → int8</strong>、<strong>k_pe → 保 fp16</strong>。</p>
+
+      <h2 id="weights">权重描述</h2>
+      <pre data-lang="json"><code>{
+  "model_quant_type": "W8A8_DYNAMIC",
+  "fa_quant_type":    "FAKQuant",          // ← 区别于普通 FAQuant
+  "model.layers.0.self_attn.q_proj.weight":       "W8A8",
+  "model.layers.0.self_attn.q_proj.input_scale":  "W8A8",
+  "model.layers.0.self_attn.k_proj.weight":       "W8A8",
+  "model.layers.0.self_attn.v_proj.weight":       "W8A8",
+  "model.layers.0.self_attn.o_proj.weight":       "W8A8"
+}</code></pre>
+      <p>per-head scale 张量布局：</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>张量</th><th>dtype</th><th>shape</th></tr></thead>
+          <tbody>
+            <tr><td>q_scale / q_offset</td><td>fp16</td><td>[q_head_num, head_dim]</td></tr>
+            <tr><td>k_scale / k_offset</td><td>fp16</td><td>[kv_head_num, head_dim]</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="dataflow">数据流</h2>
+      <pre class="ascii-art">
+   k_proj 输出 = [k_nope (大头) | k_pe (RoPE 部分)]
+                       │              │
+                  量化为 int8     保留 fp16
+                       │              │
+                       └─── concat ───┘ → 写入 KV Cache (混合精度)
+
+   注意力计算：
+   q @ k_nope^T  → int8 算子（高速）
+   q @ k_pe^T    → fp16 算子（保精度）
+   再 softmax 并加权 V
+</pre>
+
+      <h2 id="kv-nz">必须开启 KV Cache NZ 格式</h2>
+      <p>FA3 量化要求 KV 在显存中以 <strong>NZ</strong>（昇腾专用对齐格式）布局存储以匹配算子吃数方式。</p>
+      <pre data-lang="json"><code>"ModelConfig": [{
+  "modelName": "deepseekr1",
+  "modelWeightPath": "/weights/R1_W8A8_FA3",
+  "worldSize": 8,
+  "models": {
+    "deepseekv2": {
+      "kv_cache_options": { "enable_nz": true }
+    }
+  }
+}]</code></pre>
+      <p>PD 分离场景下两端都要开启。</p>
+
+      <h2 id="enable">生成权重</h2>
+      <pre data-lang="bash"><code>cd msmodelslim/example/DeepSeek/
+python3 quant_deepseek_w8a8.py \
+  --model_path /weights/DeepSeek-R1 \
+  --save_path  /weights/DeepSeek-R1-W8A8-FA3 \
+  --batch_size 4 \
+  --fa_quant   \
+  --mindie_format
+# 检查 quant_model_description.json 应包含 "fa_quant_type": "FAKQuant"</code></pre>
+
+      <h2 id="limit">已知限制</h2>
+      <ul>
+        <li>Atlas 800I A2 / A3 支持。</li>
+        <li>仅支持 DeepSeek-R1、DeepSeek-V3、DeepSeek-R1-0528。</li>
+        <li>仅支持 fp16，且必须开 NZ 格式。</li>
+        <li>与 W4A8 混合量化<strong>互斥</strong>（详见
+        <a href="../features.html#m-deepseek">兼容矩阵</a>）。</li>
+      </ul>
+
+      <h2 id="benefit">收益</h2>
+      <ul>
+        <li>DeepSeek-R1 长上下文场景，KV 显存压一半，128k 也能跑得动。</li>
+        <li>decode 吞吐 +30–45%。</li>
+        <li>精度损失通常 &lt; 1 pp（vs 纯 W8A8）。</li>
+      </ul>
+
+      <h2 id="ref">参考</h2>
+      <ul>
+        <li>本仓库官方文档：<code>docs/zh/user_guide/feature/fa3_quantization.md</code></li>
+        <li>论文：<em>FlashAttention-3</em></li>
+        <li>相关：<a href="attention-quant.html">Attention 量化</a>、<a href="mla.html">MLA</a></li>
+      </ul>
+
+    </article>
+
+    <footer class="page-footer">
+      <a class="pager-prev" href="attention-quant.html">Attention 量化</a>
+      <a class="pager-next" href="kv-int8.html">KV Cache Int8</a>
+      <div class="copyright">
+        © 2025–2026 MindIE-LLM Wiki · 内容基于源码归纳，与官方文档可能存在表述差异
+      </div>
+    </footer>
+  </main>
+
+  <aside class="toc"></aside>
+</div>
+
+<script src="../assets/js/wiki.js"></script>
+</body>
+</html>

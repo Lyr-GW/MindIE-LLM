@@ -1,0 +1,91 @@
+---
+title: Attention 量化
+---
+      <h1>Attention 量化</h1>
+      <p class="lead">把注意力中的 <strong>Q / K / V</strong> 三个张量统一量化为 INT8。
+      KV Cache 显存压一半，decode 阶段 attention 算子加速，吞吐显著提升。</p>
+
+      <h2 id="why">为什么单独做 Attention 量化</h2>
+      <p>常规 W8A8 只覆盖 Linear 层，但 attention 内部的 Q·K^T 与 softmax(...)·V 两次大矩阵乘
+      仍是 fp16，且 KV Cache 占了 decode 阶段绝大部分显存。把 QKV 都量到 8 bit：</p>
+      <ol>
+        <li>KV Cache 显存立刻降一半 → maxBatchSize 可调大；</li>
+        <li>attention 矩阵乘走 INT8 算子 → 算力翻倍；</li>
+        <li>预计 decode 吞吐有 30–50% 提升。</li>
+      </ol>
+
+      <h2 id="weights">权重描述</h2>
+      <pre data-lang="json"><code>{
+  "model_quant_type": "W8A8",
+  "fa_quant_type":    "FAQuant",       // ← 标志 attention 量化已启用
+  "model.layers.0.self_attn.q_proj.weight":       "W8A8",
+  "model.layers.0.self_attn.q_proj.input_scale":  "W8A8",
+  "model.layers.0.self_attn.q_proj.deq_scale":    "W8A8",
+  "model.layers.0.self_attn.k_proj.weight":       "W8A8",
+  "model.layers.0.self_attn.v_proj.weight":       "W8A8",
+  "model.layers.0.self_attn.o_proj.weight":       "W8A8"
+}</code></pre>
+      <p>scale / offset 张量布局（per-head 量化）：</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>张量</th><th>dtype</th><th>shape</th></tr></thead>
+          <tbody>
+            <tr><td>q_scale / q_offset</td><td>fp16</td><td>[q_head_num, head_dim]</td></tr>
+            <tr><td>k_scale / k_offset</td><td>fp16</td><td>[kv_head_num, head_dim]</td></tr>
+            <tr><td>v_scale / v_offset</td><td>fp16</td><td>[kv_head_num, head_dim]</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>注意：scale 是 per-head + per-channel，粒度比 Linear 量化更细，因为 attention 头之间的
+      尺度差异显著。</p>
+
+      <h2 id="dataflow">推理数据流</h2>
+      <pre class="ascii-art">
+   x ─→ q_proj(W8A8) ─→ q (fp16) ──── * 1/q_scale + q_offset ──→ q (int8)
+                             ┐
+   x ─→ k_proj(W8A8) ─→ k (fp16) ──── * 1/k_scale + k_offset ──→ k (int8)
+                             ├──→ Paged Attention (int8) ─→ acc(int32) ─→ * deq → fp16 ─→ out
+   x ─→ v_proj(W8A8) ─→ v (fp16) ──── * 1/v_scale + v_offset ──→ v (int8)
+                             │
+   KV Cache 池存储 ─────────int8 (体积压 2x)
+</pre>
+
+      <h2 id="enable">如何开启</h2>
+      <p>需要使用包含 Attention 量化（FAQuant）的权重。当前主要在 LLaMA3.1-70B 上验证：</p>
+      <pre data-lang="bash"><code>msmodelslim quant \
+  --model_path /home/llama3.1-70b \
+  --save_path  /home/llama3.1-70b-w8a8-fa \
+  --device     npu \
+  --model_type LLaMA3.1-70B \
+  --quant_type w8a8 \
+  --fa_quant   \
+  --trust_remote_code True</code></pre>
+      <p>启动服务时，<code>quant_model_description.json</code> 中的 <code>"fa_quant_type": "FAQuant"</code> 字段
+      会被自动识别，无需额外开关。</p>
+
+      <h2 id="limit">已知限制</h2>
+      <ul>
+        <li>仅 Atlas 800I A2 推理服务器支持。</li>
+        <li>仅支持 LLaMA3.1-70B（其它模型陆续支持）。</li>
+        <li>必须与 <a href="w8a8.html">W8A8</a> 一同使用。</li>
+        <li>仅支持 fp16；与<a href="../parallelism.html#cp">长序列特性</a>、
+        <a href="function-call.html">Function Call</a> 协同。</li>
+      </ul>
+
+      <h2 id="vs-fa3">Attention 量化 vs FA3 量化</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th></th><th>Attention 量化</th><th>FA3 量化</th></tr></thead>
+          <tbody>
+            <tr><td>K 张量</td><td>整体 int8</td><td>非 RoPE 部分 int8、RoPE 部分保留 fp16</td></tr>
+            <tr><td>典型模型</td><td>LLaMA</td><td>DeepSeek（用 MLA + RoPE）</td></tr>
+            <tr><td>动机</td><td>普通注意力</td><td>避免 RoPE 量化精度坍塌</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="ref">参考</h2>
+      <ul>
+        <li>本仓库官方文档：<code>docs/zh/user_guide/feature/attention_quantization.md</code></li>
+        <li>相关：<a href="fa3-quant.html">FA3 量化</a>、<a href="kv-int8.html">KV Cache Int8</a></li>
+      </ul>
