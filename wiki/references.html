@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>参考资料 · MindIE-LLM Wiki</title>
+<meta name="description" content="参考资料 — MindIE-LLM Wiki（华为昇腾大语言模型推理引擎）">
+<link rel="icon" href="assets/img/favicon.ico">
+<link rel="stylesheet" href="assets/css/wiki.css">
+</head>
+<body>
+<header class="site-header">
+  <a class="brand" href="index.html">
+    <img src="assets/img/ascend-logo.png" alt="Ascend">
+    <span>MindIE-<span class="accent">LLM</span> Wiki</span>
+  </a>
+  <div class="header-spacer"></div>
+  <nav class="header-links">
+    <a href="https://github.com/Lyr-GW/MindIE-LLM" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://gitcode.com/Ascend/MindIE-LLM" target="_blank" rel="noopener">GitCode</a>
+    <a href="https://www.hiascend.com/" target="_blank" rel="noopener">昇腾社区</a>
+  </nav>
+  <button class="theme-toggle" type="button">☾ 暗色</button>
+  <button class="menu-toggle" type="button" aria-label="菜单">☰</button>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <input class="sidebar-filter" placeholder="筛选目录…" aria-label="筛选目录">
+    <nav>
+      <div class="nav-group">
+        <div class="nav-group-title">入门</div>
+        <ul>
+          <li><a href="index.html">首页</a></li>
+          <li><a href="introduction.html">项目简介</a></li>
+          <li><a href="quick-start.html">快速入门</a></li>
+          <li><a href="installation.html">安装与编译</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">架构与内核</div>
+        <ul>
+          <li><a href="architecture.html">架构总览</a></li>
+          <li><a href="directory.html">目录结构</a></li>
+          <li><a href="server-api.html">服务端与 API</a></li>
+          <li><a href="cpp-engine.html">C++ 引擎内核</a></li>
+          <li><a href="scheduler.html">调度器</a></li>
+          <li><a href="block-manager.html">KV Cache &amp; Block</a></li>
+          <li><a href="python-runtime.html">Python 推理框架</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">特性</div>
+        <ul>
+          <li><a href="features.html">特性总览</a></li>
+          <li><a href="quantization.html">量化特性</a></li>
+          <li><a href="parallelism.html">并行策略</a></li>
+          <li><a href="acceleration.html">加速特性</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">开发</div>
+        <ul>
+          <li><a href="development.html">开发与贡献</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">参考</div>
+        <ul>
+          <li><a href="faq.html">常见问题</a></li>
+          <li><a href="references.html">参考资料</a></li>
+        </ul>
+      </div>
+    </nav>
+  </aside>
+
+  <main class="content">
+    <nav class="breadcrumb">
+      <a href="index.html">首页</a><span class="sep">›</span><span>参考</span><span class="sep">›</span><span>参考资料</span>
+    </nav>
+    <article>
+      <h1>参考资料</h1>
+      <p class="lead">MindIE-LLM 相关的官方资源、上下游项目、关键论文与本仓库内的文档地图。</p>
+
+      <h2 id="official">官方与社区</h2>
+      <div class="card-grid">
+        <a class="card" href="https://www.hiascend.com/" target="_blank" rel="noopener">
+          <div class="card-title">昇腾社区</div>
+          <div class="card-desc">硬件、镜像、软件下载、生态门户。</div>
+        </a>
+        <a class="card" href="https://mindie-llm-doc.readthedocs.io/zh-cn/latest/" target="_blank" rel="noopener">
+          <div class="card-title">官方在线文档（mkdocs）</div>
+          <div class="card-desc">用户指南 / 开发者指南 / FAQ / Release Notes 全集。</div>
+        </a>
+        <a class="card" href="https://gitcode.com/Ascend/MindIE-LLM" target="_blank" rel="noopener">
+          <div class="card-title">GitCode 上游仓库</div>
+          <div class="card-desc">最新 master / dev 分支与 issue / PR。</div>
+        </a>
+        <a class="card" href="https://github.com/Lyr-GW/MindIE-LLM" target="_blank" rel="noopener">
+          <div class="card-title">GitHub 镜像（本 Wiki 仓库）</div>
+          <div class="card-desc">本 Wiki 维护的 fork。</div>
+        </a>
+        <a class="card" href="https://www.hiascend.com/developer/ascendhub/detail/af85b724a7e5469ebd7ea13c3439d48f" target="_blank" rel="noopener">
+          <div class="card-title">MindIE 镜像仓库</div>
+          <div class="card-desc">官方预装 CANN/ATB/MindIE 的 Docker 镜像。</div>
+        </a>
+        <a class="card" href="https://meeting.ascend.osinfra.cn/?sig=sig-MindIE-LLM" target="_blank" rel="noopener">
+          <div class="card-title">SIG 会议日历</div>
+          <div class="card-desc">MindIE-LLM 社区例会议程与会议纪要。</div>
+        </a>
+      </div>
+
+      <h2 id="related">上下游项目</h2>
+      <ul>
+        <li><a href="https://www.hiascend.com/software/cann" target="_blank" rel="noopener">CANN（Compute Architecture for Neural Networks）</a> —
+        昇腾基础软件栈，提供驱动 / Runtime / 算子编译。</li>
+        <li><a href="https://gitee.com/ascend/MindIE-Service" target="_blank" rel="noopener">MindIE-Service</a> —
+        统一推理服务化网关。</li>
+        <li><a href="https://gitee.com/ascend/MindIE-Torch" target="_blank" rel="noopener">MindIE-Torch</a> —
+        PyTorch 模型一键部署到昇腾。</li>
+        <li><a href="https://gitee.com/aisbench/benchmark" target="_blank" rel="noopener">AISBench</a> —
+        昇腾推理基准测试工具，本 Wiki <a href="quick-start.html#bench">快速入门</a> 中演示过。</li>
+      </ul>
+
+      <h2 id="papers">关键论文与算法</h2>
+      <p>MindIE-LLM 的特性来自于推理领域近几年的关键工作，列出核心几篇：</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>主题</th><th>代表作</th><th>本仓库实现位置</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>PagedAttention</td>
+              <td>vLLM: <em>Efficient Memory Management for Large Language Model Serving with PagedAttention</em></td>
+              <td><a href="block-manager.html">block_manager/</a></td>
+            </tr>
+            <tr>
+              <td>Continuous Batching</td>
+              <td>Orca / vLLM 系列</td>
+              <td><a href="scheduler.html">scheduler/</a></td>
+            </tr>
+            <tr>
+              <td>FlashAttention / FA3</td>
+              <td><em>FlashAttention</em>、<em>FlashAttention-3</em></td>
+              <td>ATB Attention 算子 + <a href="quantization.html#fa3">FA3 量化</a></td>
+            </tr>
+            <tr>
+              <td>SplitFuse / Chunk Prefill</td>
+              <td>DeepSpeed-FastGen <em>SplitFuse</em></td>
+              <td><a href="acceleration.html#splitfuse">plugins/splitfuse</a></td>
+            </tr>
+            <tr>
+              <td>Speculative Decoding</td>
+              <td><em>Fast Inference from Transformers via Speculative Decoding</em></td>
+              <td><a href="acceleration.html#speculative">投机解码 / la / mtp</a></td>
+            </tr>
+            <tr>
+              <td>Lookahead Decoding</td>
+              <td>UCSD <em>Lookahead Decoding</em></td>
+              <td><a href="acceleration.html#la">plugins/la</a></td>
+            </tr>
+            <tr>
+              <td>MoE 路由 / 负载均衡</td>
+              <td>Switch Transformer / GShard</td>
+              <td><a href="parallelism.html#load-balance">EPLB</a></td>
+            </tr>
+            <tr>
+              <td>SmoothQuant / 离群值抑制</td>
+              <td><em>SmoothQuant: Accurate and Efficient Post-Training Quantization for LLMs</em></td>
+              <td><a href="quantization.html#anti-outlier">Anti-Outlier</a></td>
+            </tr>
+            <tr>
+              <td>AWQ / GPTQ 系列</td>
+              <td>AWQ / GPTQ / OmniQuant</td>
+              <td><a href="quantization.html#w4a8">W4A8 mix</a></td>
+            </tr>
+            <tr>
+              <td>MLA</td>
+              <td>DeepSeek-V2 / V3 系列</td>
+              <td>modeling 中 MLA Attention 实现</td>
+            </tr>
+            <tr>
+              <td>MTP</td>
+              <td>DeepSeek-V3 <em>Multi-Token Prediction</em></td>
+              <td><a href="acceleration.html#mtp">plugins/mtp</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="docs-map">仓库内文档地图</h2>
+      <p>除本 Wiki 外，仓库内还提供详尽的官方文档（mkdocs 源），可作权威参考：</p>
+      <ul>
+        <li><strong>用户指南</strong>：<code>docs/zh/user_guide/</code>
+          <ul>
+            <li><code>install/</code> — 安装介绍 / 环境准备 / 软件安装 / 安全加固</li>
+            <li><code>quick_start/</code> — 快速入门</li>
+            <li><code>user_manual/</code> — 服务化参数、模型参数、环境变量、日志、绑核、PD 混部</li>
+            <li><code>feature/</code> — 30+ 个特性的详尽说明</li>
+            <li><code>models/</code> — 各模型的接入说明</li>
+            <li><code>model_support_list.md</code> — 模型支持列表</li>
+            <li><code>optimization_and_tuning.md</code> — 性能调优手册</li>
+          </ul>
+        </li>
+        <li><strong>开发者指南</strong>：<code>docs/zh/developer_guide/</code>
+          <ul>
+            <li><code>architecture_design/</code> — 架构总览、MicroBatch、MoE、MTP、Multi-LoRA、RoPE 工厂</li>
+            <li><code>build_guide.md</code> — 编译指南</li>
+            <li><code>migration_and_adaptation_guide/</code> — 模型迁移与适配（含 ACLGraph 与多模态）</li>
+          </ul>
+        </li>
+        <li><strong>FAQ</strong>：<code>docs/zh/faq/faq.md</code></li>
+        <li><strong>Release Notes</strong>：<code>docs/zh/release_notes.md</code></li>
+        <li><strong>架构图</strong>：<code>docs/zh/figures/architecture.png</code> 等</li>
+      </ul>
+
+      <h2 id="external-tools">第三方学习资源</h2>
+      <p>这些资源不属于本仓库，但能帮助理解相关概念：</p>
+      <ul>
+        <li><a href="https://blog.vllm.ai" target="_blank" rel="noopener">vLLM 官方博客</a> —
+        PagedAttention / Continuous Batching 第一手设计文章。</li>
+        <li><a href="https://huggingface.co/docs/text-generation-inference" target="_blank" rel="noopener">TGI 文档</a> —
+        TGI 协议字段参考。</li>
+        <li><a href="https://platform.openai.com/docs/api-reference" target="_blank" rel="noopener">OpenAI API Reference</a> —
+        Chat Completions / Tools / Streaming 协议。</li>
+        <li><a href="https://github.com/triton-inference-server/server" target="_blank" rel="noopener">Triton Inference Server</a> —
+        Triton 协议参考实现。</li>
+      </ul>
+
+      <h2 id="thanks">致谢</h2>
+      <p>本 Wiki 在编写过程中参考了仓库源码、官方 mkdocs 文档以及上述社区资源。
+      所有总结性表述基于公开材料，最终以官方文档与代码为准。</p>
+      <p>若你发现本 Wiki 中的错误或希望补充内容，欢迎在 GitHub
+      <a href="https://github.com/Lyr-GW/MindIE-LLM" target="_blank" rel="noopener">Lyr-GW/MindIE-LLM</a>
+      的 <code>wiki/</code> 目录下提 Pull Request。</p>
+
+    </article>
+
+    <footer class="page-footer">
+      <a class="pager-prev" href="faq.html">常见问题</a>
+      <span></span>
+      <div class="copyright">
+        © 2025–2026 MindIE-LLM Wiki · 内容基于源码归纳，与官方文档可能存在表述差异
+      </div>
+    </footer>
+  </main>
+
+  <aside class="toc"></aside>
+</div>
+
+<script src="assets/js/wiki.js"></script>
+</body>
+</html>

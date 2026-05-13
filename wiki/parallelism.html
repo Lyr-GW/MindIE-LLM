@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>并行策略 · MindIE-LLM Wiki</title>
+<meta name="description" content="并行策略 — MindIE-LLM Wiki（华为昇腾大语言模型推理引擎）">
+<link rel="icon" href="assets/img/favicon.ico">
+<link rel="stylesheet" href="assets/css/wiki.css">
+</head>
+<body>
+<header class="site-header">
+  <a class="brand" href="index.html">
+    <img src="assets/img/ascend-logo.png" alt="Ascend">
+    <span>MindIE-<span class="accent">LLM</span> Wiki</span>
+  </a>
+  <div class="header-spacer"></div>
+  <nav class="header-links">
+    <a href="https://github.com/Lyr-GW/MindIE-LLM" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://gitcode.com/Ascend/MindIE-LLM" target="_blank" rel="noopener">GitCode</a>
+    <a href="https://www.hiascend.com/" target="_blank" rel="noopener">昇腾社区</a>
+  </nav>
+  <button class="theme-toggle" type="button">☾ 暗色</button>
+  <button class="menu-toggle" type="button" aria-label="菜单">☰</button>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <input class="sidebar-filter" placeholder="筛选目录…" aria-label="筛选目录">
+    <nav>
+      <div class="nav-group">
+        <div class="nav-group-title">入门</div>
+        <ul>
+          <li><a href="index.html">首页</a></li>
+          <li><a href="introduction.html">项目简介</a></li>
+          <li><a href="quick-start.html">快速入门</a></li>
+          <li><a href="installation.html">安装与编译</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">架构与内核</div>
+        <ul>
+          <li><a href="architecture.html">架构总览</a></li>
+          <li><a href="directory.html">目录结构</a></li>
+          <li><a href="server-api.html">服务端与 API</a></li>
+          <li><a href="cpp-engine.html">C++ 引擎内核</a></li>
+          <li><a href="scheduler.html">调度器</a></li>
+          <li><a href="block-manager.html">KV Cache &amp; Block</a></li>
+          <li><a href="python-runtime.html">Python 推理框架</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">特性</div>
+        <ul>
+          <li><a href="features.html">特性总览</a></li>
+          <li><a href="quantization.html">量化特性</a></li>
+          <li><a href="parallelism.html">并行策略</a></li>
+          <li><a href="acceleration.html">加速特性</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">开发</div>
+        <ul>
+          <li><a href="development.html">开发与贡献</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">参考</div>
+        <ul>
+          <li><a href="faq.html">常见问题</a></li>
+          <li><a href="references.html">参考资料</a></li>
+        </ul>
+      </div>
+    </nav>
+  </aside>
+
+  <main class="content">
+    <nav class="breadcrumb">
+      <a href="index.html">首页</a><span class="sep">›</span><span>特性</span><span class="sep">›</span><span>并行策略</span>
+    </nav>
+    <article>
+      <h1>并行策略</h1>
+      <p class="lead">从单卡跑不动 13B，到 8 卡跑通 70B，再到几十节点上承载万亿 MoE，
+      MindIE-LLM 通过 <strong>TP / DP / EP / CP / SP</strong> 五种并行
+      方式自由组合，应对不同规模与场景。</p>
+
+      <h2 id="map">五种并行总览</h2>
+      <pre class="ascii-art">
+   并行         切分对象          通信      典型用途
+   ──────────  ──────────────  ────────  ──────────────────
+   TP (张量)   权重矩阵列/行     AllReduce  单实例多卡
+   DP (数据)   batch 维度       梯度无     多实例同模型扩并发
+   EP (专家)   MoE 专家         AllToAll   稀疏模型扩参数量
+   CP (上下文) 序列 chunk       Ring/SP   超长上下文 prefill
+   SP (序列)   序列维度的 KV    All-Gather 长上下文 decode
+</pre>
+
+      <h2 id="tp">Tensor Parallel（张量并行）</h2>
+      <p>把模型的<strong>权重矩阵在维度上切分</strong>到多张卡。</p>
+      <ul>
+        <li><strong>典型实现</strong>：Megatron 风格 — Linear 层按 column / row 切分；
+        Attention 按 head 切分。MindIE-LLM 在
+        <a href="python-runtime.html#layers">runtime/layers/linear</a> 提供
+        <code>ColumnParallelLinear</code> / <code>RowParallelLinear</code>。</li>
+        <li><strong>通信</strong>：每个 transformer 层若干次 <code>AllReduce</code>，
+        延迟敏感。</li>
+        <li><strong>配置</strong>：通过 <code>worldSize</code> 控制；同一 <code>npuDeviceIds</code>
+        集合下所有卡是同一个 TP 组。</li>
+        <li><strong>适用</strong>：单模型显存放不下时的首选。</li>
+      </ul>
+
+      <h2 id="dp">Data Parallel（数据并行）</h2>
+      <p>把不同请求 / 批次<strong>分配到不同设备组</strong>，每组独立完成 forward。</p>
+      <ul>
+        <li>等价于多实例同模型，请求级横向扩展。</li>
+        <li><strong>通信</strong>：推理阶段几乎无组间通信。</li>
+        <li><strong>配置</strong>：<code>npuDeviceIds</code> 写成多组，例如
+        <code>[[0,1,2,3],[4,5,6,7]]</code> 表示两个 DP 实例，每实例 4 卡 TP。</li>
+        <li><strong>价值</strong>：吞吐线性扩展。</li>
+      </ul>
+
+      <h2 id="ep">Expert Parallel（专家并行）</h2>
+      <p>仅在 <strong>MoE</strong> 模型中存在：把不同专家分布到不同卡。</p>
+      <ul>
+        <li><strong>通信</strong>：每个 token 在 routing 后通过 <code>AllToAll</code> 送到目标专家所在卡。</li>
+        <li><strong>挑战</strong>：专家间负载不均衡 — 某些专家被频繁选中。</li>
+        <li><strong>缓解方案</strong>：
+          <ul>
+            <li><a href="#load-balance">负载均衡</a>（Expert Parallelism Load Balancer，EPLB）</li>
+            <li><a href="#shared-expert">共享专家外置</a>（独立部署高频共享专家）</li>
+          </ul>
+        </li>
+        <li><strong>配置</strong>：<code>pluginParams.expert_parallel.enable=true</code> + 路由策略参数。</li>
+      </ul>
+
+      <h3 id="load-balance">负载均衡（EPLB）</h3>
+      <p>通过：</p>
+      <ol>
+        <li>线上统计各专家访问频率（<a href="python-runtime.html#runtime">runtime</a> 中 EP 模块负责采集）。</li>
+        <li>动态<strong>冗余复制</strong>热门专家到其他卡，使路由可分流。</li>
+        <li>定期再平衡，避免长时间倾斜。</li>
+      </ol>
+
+      <h3 id="shared-expert">共享专家外置</h3>
+      <p>MoE 中常有「共享专家」（如 DeepSeek 的 shared experts），所有 token 都会经过。
+      把它独立部署到专卡，与路由专家分离：</p>
+      <ul>
+        <li>共享专家所在卡可全力做密集计算，不参与 AllToAll。</li>
+        <li>路由专家所在卡专注稀疏路由。</li>
+        <li>整体 TPOT 显著改善。</li>
+      </ul>
+
+      <h2 id="cp">Context Parallel（上下文并行）</h2>
+      <p>专为<strong>长 prompt prefill</strong> 设计：把 prompt 的 token 序列在
+      <strong>上下文维度</strong>切分到多卡，每卡只算一段，再通过 ring / 序列通信完成
+      attention 的全局交互。</p>
+      <ul>
+        <li><strong>价值</strong>：减小单卡 prefill 时长，降低首 token 时延。</li>
+        <li><strong>通信</strong>：环状传 K / V。</li>
+        <li><strong>典型场景</strong>：上下文 128k+ 的长文档。</li>
+      </ul>
+
+      <h2 id="sp">Sequence Parallel（序列并行）</h2>
+      <p>侧重 <strong>decode</strong> 阶段：把 KV Cache 按序列长度切分，每张卡持有
+      <em>不同片段</em>的 KV，本地计算 + AllGather 合并。</p>
+      <ul>
+        <li><strong>价值</strong>：当 KV 太大单卡装不下时的关键手段。</li>
+        <li><strong>组合</strong>：常与 CP 同时启用，覆盖长 prefill + 长 decode。</li>
+      </ul>
+
+      <h2 id="combine">组合矩阵</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>组合</th><th>含义</th><th>注意</th></tr></thead>
+          <tbody>
+            <tr><td>TP × DP</td><td>单实例多卡 × 多实例</td><td>最常见，<code>npuDeviceIds</code> 二维数组直接表达</td></tr>
+            <tr><td>TP × EP</td><td>稠密层 TP，专家层 EP</td><td>MoE 模型常用</td></tr>
+            <tr><td>TP × CP</td><td>长 prompt prefill 加速</td><td>同一组卡同时承担 TP 与 CP</td></tr>
+            <tr><td>TP × SP</td><td>长上下文 decode</td><td>切 KV，需更高带宽</td></tr>
+            <tr><td>EP × DP</td><td>多 MoE 实例</td><td>注意 EPLB 同步策略</td></tr>
+            <tr><td>TP × CP × SP</td><td>极致长上下文</td><td>对网络拓扑要求高</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="ranktable">多机部署：ranktable</h2>
+      <p>多机推理时用 <strong>ranktable JSON</strong> 描述全局拓扑，由
+      <a href="cpp-engine.html#config-manager">config_manager/ranktable_config.cpp</a> 解析。
+      ranktable 至少包含：</p>
+      <ul>
+        <li><code>server_list</code>：各节点 IP / device list / rank id。</li>
+        <li><code>parallel_group</code>：每张卡所在的 TP / DP / EP 组。</li>
+        <li><code>communication_backend</code>：HCCL 等。</li>
+      </ul>
+      <p>启动时把 ranktable 路径写入 <code>config.json</code>，<code>npuDeviceIds</code>
+      字段在多机模式下被忽略，节点上的卡集合由 ranktable 决定。</p>
+
+      <h2 id="config-examples">典型配置</h2>
+      <h3 id="tp4-dp2">8 卡：TP=4 + DP=2</h3>
+      <pre data-lang="json"><code>"BackendConfig": {
+  "npuDeviceIds": [[0,1,2,3], [4,5,6,7]],
+  "ModelDeployConfig": {
+    "ModelConfig": [{
+      "modelName": "llama2-70b",
+      "modelWeightPath": "/home/weight",
+      "worldSize": 4
+    }]
+  }
+}</code></pre>
+
+      <h3 id="moe-ep">MoE 模型：TP=2 + EP=4</h3>
+      <pre data-lang="json"><code>"BackendConfig": {
+  "npuDeviceIds": [[0,1,2,3,4,5,6,7]],
+  "ModelDeployConfig": {
+    "ModelConfig": [{
+      "modelName": "deepseek-moe",
+      "modelWeightPath": "/home/weight",
+      "worldSize": 8,
+      "pluginParams": {
+        "tensor_parallel_size": 2,
+        "expert_parallel_size": 4,
+        "expert_parallel_load_balance": true,
+        "shared_expert_external": true
+      }
+    }]
+  }
+}</code></pre>
+
+      <h3 id="long-ctx">长上下文：TP=4 + CP=2</h3>
+      <pre data-lang="json"><code>"BackendConfig": {
+  "npuDeviceIds": [[0,1,2,3,4,5,6,7]],
+  "ModelDeployConfig": {
+    "ModelConfig": [{
+      "modelName": "qwen2-72b-128k",
+      "modelWeightPath": "/home/weight",
+      "worldSize": 8,
+      "pluginParams": {
+        "tensor_parallel_size": 4,
+        "context_parallel_size": 2,
+        "sequence_parallel_size": 2
+      }
+    }]
+  }
+}</code></pre>
+
+      <h2 id="debug">调优要点</h2>
+      <ul>
+        <li>把 <strong>HCCL 通信日志</strong>打开（<code>HCCL_DEBUG=INFO</code>），观察 AllReduce / AllToAll
+        是否成为瓶颈。</li>
+        <li>TP 越大单步越慢、batch 越能塞大；DP 越大并发越高、单 batch 不变。</li>
+        <li>MoE 启用 EPLB 时关注热点专家分布，必要时调整 routing 平滑因子。</li>
+        <li>CP / SP 受限于网络，如果是单机内多卡可优先 CP；跨机谨慎评估。</li>
+      </ul>
+
+    </article>
+
+    <footer class="page-footer">
+      <a class="pager-prev" href="quantization.html">量化特性</a>
+      <a class="pager-next" href="acceleration.html">加速特性</a>
+      <div class="copyright">
+        © 2025–2026 MindIE-LLM Wiki · 内容基于源码归纳，与官方文档可能存在表述差异
+      </div>
+    </footer>
+  </main>
+
+  <aside class="toc"></aside>
+</div>
+
+<script src="assets/js/wiki.js"></script>
+</body>
+</html>
