@@ -4,177 +4,286 @@ prev: scheduler
 next: python-runtime
 ---
       <h1>KV Cache 与 Block Manager</h1>
-      <p class="lead">大模型推理的显存瓶颈几乎全集中在 KV Cache 上。MindIE-LLM 的
-      <span class="path">src/block_manager/</span> 实现了一套完整的「分块 + 引用计数 + LRU 驱逐 +
-      Copy-on-Write + 异构存储」KV 管理方案。</p>
+      <p class="lead">这一章把 <span class="path">src/block_manager/</span> 整个目录拆开看：
+      为什么大模型推理要做 KV 分块、MindIE-LLM 的 Block 对象长什么样、
+      多个分配器是怎么协作的、引用计数 / LRU / CoW / 前缀哈希 / CPU↔NPU 池化怎么实现，
+      最后给出调优与扩展指引。每节都附关键源码片段。</p>
 
-      <h2 id="why">为什么需要 Block Manager</h2>
-      <p>朴素实现会给每个序列预留「最大长度 × 头数 × 维度」的连续显存，导致：</p>
-      <ul>
-        <li><strong>显存浪费</strong>：长上下文导致大量 padding 不被使用。</li>
-        <li><strong>无法共享</strong>：相同 prompt 的多个请求重复计算 KV。</li>
-        <li><strong>无法弹性</strong>：突发长请求需要中断或拒绝。</li>
-      </ul>
-      <p>PagedAttention 的核心思想是：把 KV 切成固定大小的「块」（block），每个序列持有一张
-      block 表（page table）。MindIE-LLM 在此基础上叠加了 prefix cache、CoW、CPU 池化等优化。</p>
+      <div class="admonition note">
+        <div class="admonition-title">📚 阅读路线</div>
+        <p>第 1–3 节是「为什么」与「概念」，新人按顺序读即可；4–7 节是「实现」与
+        源码摘录；8–9 节是「调优」与「扩展」。读完你应该能在源码里精准定位任何 KV 相关
+        问题。</p>
+      </div>
 
-      <h2 id="overview">组件全景</h2>
-      <pre class="ascii-art">
-   ┌────────────────────────────────────────────────────────────┐
-   │                  SelfAttnBlockManager (顶层)               │
-   │  · 每个请求一张 BlockTable                                  │
-   │  · 协调申请 / 释放 / Swap                                   │
-   └─────────────┬──────────────────────────────────────────────┘
-                 │
-        ┌────────┴───────────┬─────────────────────────────┐
-        ▼                    ▼                             ▼
-  ┌────────────┐    ┌──────────────────┐         ┌────────────────────┐
-  │ Hashless   │    │ PrefixCache      │         │ CpuNpuAllocator    │
-  │ Allocator  │    │ Allocator        │         │ (异构两级)         │
-  └────┬───────┘    └────┬─────────────┘         └────┬───────────────┘
-       │                 │                             │
-       ▼                 ▼                             ▼
-  ┌────────────────────────────────────────────────────────────┐
-  │   ObjPool / RefCounter / LRUEvictor / CoWTracker /         │
-  │   HitRateCalculator / BlockTracker / BlockTable / Evictor  │
-  └────────────────────────────────────────────────────────────┘
-</pre>
-
-      <h2 id="top">顶层管理器</h2>
-      <ul>
-        <li><strong><code>SelfAttnBlockManager</code></strong>
-        （<code>self_attn_block_manager.cpp/h</code>）：标准 self-attention 模型的 KV 管理器。
-        负责为每个请求建立 BlockTable，并在调度器请求时申请 / 释放 block。</li>
-        <li><strong><code>LwdSelfAttnBlockManager</code></strong>
-        （<code>lwd_self_attn_block_manager.cpp/h</code>）：Layerwise Decode 优化版本，
-        与 <a href="scheduler.html#policy-layerwise">LayerwiseFCFS</a> 调度策略配合，
-        支持 layer 粒度的混合执行。</li>
-        <li><strong><code>RequestSingleBlockManager</code></strong>
-        （<code>request_single_block_manager.cpp/h</code>）：单请求专用管理器，简化场景使用。</li>
-      </ul>
-
-      <h2 id="allocators">分配器矩阵</h2>
-      <p>所有分配器共享 <code>DeviceAwareBlockAllocator</code>（<code>device_aware_block_allocator.h</code>）
-      接口，由顶层根据配置选择具体实现。</p>
-
-      <h3 id="hashless">HashlessBlockAllocator</h3>
-      <p>文件：<code>hashless_block_allocator.cpp/h</code> + <code>hashless_block_obj.cpp/h</code>。</p>
-      <ul>
-        <li>最基础的 free-list 分配器：维护一个全局空闲池，O(1) 分配 / 释放。</li>
-        <li>不做任何前缀复用，适合 prefix cache 关闭或命中率低的场景。</li>
-        <li>典型搭配 <code>LRUEvictor</code> 做被动驱逐。</li>
-      </ul>
-
-      <h3 id="prefix">PrefixCacheBlockAllocator</h3>
-      <p>文件：<code>prefix_cache_block_allocator.cpp/h</code> + <code>prefix_cache_block.cpp/h</code>。</p>
-      <ul>
-        <li>每个 block 计算 hash（包含 token id 序列与父 block hash），相同前缀的多个请求
-        共享 block。</li>
-        <li>命中率统计由 <code>HitRateCalculator</code> 维护，输出到 <code>/metrics</code>。</li>
-        <li>命中后省去 prefill 计算，TTFT 显著降低。</li>
-        <li>对应 <a href="acceleration.html#prefix-cache">加速特性 → Prefix Cache</a>。</li>
-      </ul>
-
-      <h3 id="cpu-npu">CpuNpuBlockAllocator</h3>
-      <p>文件：<code>cpu_npu_block_allocator.cpp/h</code>。</p>
-      <ul>
-        <li>实现两级存储：NPU 上是热数据，CPU DRAM（甚至 SSD via mmap）是冷数据。</li>
-        <li>当 NPU 空间紧张，把最久未访问的 block <strong>swap</strong> 到 CPU；命中时再
-        swap 回 NPU。</li>
-        <li>对应 <a href="acceleration.html#kv-pool">加速特性 → KV Cache 池化</a>。</li>
-      </ul>
-
-      <h2 id="evictor">驱逐策略</h2>
-      <p>接口 <code>evictor.h</code>，目前主要实现 <strong><code>LRUEvictor</code></strong>
-      （<code>lru_evictor.cpp/h</code>）：</p>
-      <ul>
-        <li>按访问时间组织一个双向链表，最新访问移到表尾，驱逐时取表头。</li>
-        <li>对 prefix cache 友好：被多请求共享的 block 引用计数高，自然不会被驱逐。</li>
-      </ul>
-
-      <h2 id="ref-counter">引用计数</h2>
-      <p>文件 <code>ref_counter.cpp/h</code> + <code>ref_counter_protocol.h</code>。</p>
-      <ul>
-        <li>每个 block 都附带 <code>RefCount</code>。命中 prefix cache 时 +1，请求结束时 −1。</li>
-        <li>引用计数为 0 才能进入驱逐候选；为 0 且未分裂的可以直接回收。</li>
-        <li>避免共享 block 被错误释放。</li>
-      </ul>
-
-      <h2 id="cow">Copy-on-Write</h2>
-      <p>文件 <code>copy_on_write_tracker.cpp/h</code>。</p>
-      <p>当多个序列共享同一个 prefix block，但其中一个序列要在该 block 内追加新 token（变得不同）
-      时，需要 <strong>CoW 复制</strong>该 block 的内容并把当前序列的 BlockTable 指向新 block，
-      其他共享者继续使用旧 block。Tracker 负责：</p>
-      <ul>
-        <li>识别 fork point，记录 CoW 事件。</li>
-        <li>触发新 block 申请 + 内容拷贝。</li>
-        <li>更新引用计数。</li>
-      </ul>
-
-      <h2 id="hit-rate">命中率统计</h2>
-      <p>文件 <code>hit_rate_calculator.cpp/h</code>。</p>
-      <ul>
-        <li>滑动窗口统计请求级 / token 级命中率。</li>
-        <li>对外通过 <code>/metrics</code>、<code>/metrics-json</code> 暴露。</li>
-        <li>用于评估 prefix cache 是否值得开启（命中率持续低 5% 时建议关闭）。</li>
-      </ul>
-
-      <h2 id="auxiliary">辅助结构</h2>
-      <ul>
-        <li><strong><code>BlockTable</code></strong>（<code>block_table.cpp/h</code>）：
-        每序列的 page table，记录 token → block 索引映射。</li>
-        <li><strong><code>BlockTracker</code></strong>（<code>block_tracker.cpp/h</code>）：
-        全局 block 状态跟踪（被哪些序列持有、引用计数、CoW 状态）。</li>
-        <li><strong><code>ObjPool</code></strong>（<code>obj_pool.h</code>）：通用对象池，
-        Block 对象避免频繁 new/delete。</li>
-        <li><strong><code>BlockObj</code></strong>（<code>block_obj.h</code>）：block 对象封装。</li>
-      </ul>
-
-      <h2 id="lifecycle">一次分配生命周期</h2>
+      <h2 id="why">1. 为什么需要 Block Manager</h2>
+      <p>大模型推理时每生成 1 个 token，就要把这个 token 的 K / V 张量缓存起来供后续使用，
+      这就是 <strong>KV Cache</strong>。朴素实现给每个序列预留「最大长度 × 头数 × 维度」
+      的连续显存，会带来三个严重问题：</p>
       <ol>
-        <li><strong>请求到来</strong>：调度器决定可纳入本轮 batch，向 BlockManager
-        请求 N 个 block（基于 prompt 长度）。</li>
-        <li><strong>查 prefix cache</strong>：<code>PrefixCacheBlockAllocator</code>
-        计算 hash，逐 block 比对。命中前缀 K 个 block 直接复用并 +1 引用。</li>
-        <li><strong>申请新 block</strong>：剩余 N−K 个 block 走自由池或触发 LRU 驱逐。</li>
-        <li><strong>建表</strong>：写入该序列的 <code>BlockTable</code>，发回调度器。</li>
-        <li><strong>token 增长</strong>：每次新 token，写入当前 block；
-        block 写满则申请下一个。</li>
-        <li><strong>序列结束 / 中止</strong>：遍历 BlockTable，对每个 block 引用计数 −1；
-        归 0 进入驱逐候选。</li>
-        <li><strong>共享分裂</strong>：若某 block 被 fork，CoWTracker 触发复制并改写表项。</li>
+        <li><strong>显存浪费</strong>：实际请求长度往往远小于最大长度，未用空间被锁住。</li>
+        <li><strong>无法共享</strong>：相同 prompt 的多请求重复算 KV，重复占空间。</li>
+        <li><strong>无法弹性</strong>：突发长请求需要中断或拒绝。</li>
       </ol>
+      <p>PagedAttention 的解法是：把 KV 切成<strong>固定大小的 Block</strong>（如 16 token），
+      每个序列持一张「page table」（block 索引数组）。MindIE-LLM 在此之上叠加了
+      <strong>Prefix 共享、CoW 分裂、LRU 驱逐、CPU/NPU 异构池化</strong>。</p>
 
-      <h2 id="config">关键配置</h2>
+      <h2 id="block">2. Block 对象：最小存储单元</h2>
+      <p>看 <span class="path">src/block_manager/block_obj.h</span> 中 <code>BlockObj</code>
+      的接口（精简，去除注释）：</p>
+      <pre data-lang="cpp"><code>// 摘自 src/block_manager/block_obj.h
+class BlockObj {
+public:
+    virtual void          AppendTokenIds(const std::vector&lt;TokenId&gt;&amp; tokenIds) = 0;
+    virtual BlockId       GetBlockId() const = 0;
+    virtual size_t        GetRankIdx() const = 0;          // 属于哪一卡（rank）
+    virtual const std::vector&lt;TokenId&gt;&amp; GetTokenIds() const = 0;
+    virtual size_t        GetNumTokensTotal() const = 0;   // 含前驱链
+    virtual bool          IsFull() const = 0;
+    virtual std::shared_ptr&lt;BlockObj&gt;&amp; GetPrevBlock() = 0; // 形成链表
+    virtual bool          IsComputed() const = 0;          // KV 是否真已写入
+    virtual float         LastAccessed() const = 0;        // LRU 用
+    virtual HashValue     GetHashValue() = 0;              // PrefixCache 用
+    virtual HashValue     PrefixHash() = 0;                // 含前驱
+    virtual HashValue     ExtraHash() = 0;                 // LoRA 等额外因子
+    virtual void InitBlockObj(...);
+    ...
+};</code></pre>
+      <p>关键认知：</p>
+      <ul>
+        <li>每个 Block 持<strong>固定容量</strong>的 token id 数组（容量 = <code>blockSize</code>）。</li>
+        <li>Block 通过 <code>GetPrevBlock()</code> 形成<strong>链表</strong>，反映「这块 KV
+        是基于哪个前缀算出来的」。</li>
+        <li><code>PrefixHash()</code> 把整条前缀链一并哈希，让多请求复用前缀。</li>
+        <li><code>ExtraHash()</code> 给 LoRA、量化模式等额外维度留口子，避免不同 LoRA
+        共享同一段 KV。</li>
+      </ul>
+
+      <h2 id="overview">3. 模块全景</h2>
+      <pre class="ascii-art">
+   ┌─────────────────────────────────────────────────────────────┐
+   │              SelfAttnBlockManager  (顶层)                    │
+   │  · 每个序列一张 BlockTable                                    │
+   │  · 协调申请 / 释放 / Swap                                     │
+   └────────────────┬────────────────────────────────────────────┘
+                    │ 持有
+                    ▼
+       ┌────────────────────────────────────┐
+       │        DeviceAwareBlockAllocator    │ ← 抽象基类
+       └────────┬─────────┬──────────────────┘
+                │         │
+   ┌────────────┘         └────────────────────────┐
+   ▼                                                ▼
+  Hashless          PrefixCache             CpuNpu (异构两级)
+  Allocator         BlockAllocator          BlockAllocator
+  · free list       · prefixHash → blockId  · NPU 热 + CPU 冷
+                    · LRU evict / CoW       · swapMapping_
+
+       ┌────────────────────────────────────────────────────────┐
+       │     ObjPool<BlockObj> · RefCounter · LRUEvictor ·      │
+       │     CopyOnWriteTracker · HitRateCalculator             │
+       └────────────────────────────────────────────────────────┘
+</pre>
+      <p>顶层管理器 <code>SelfAttnBlockManager</code>（以及 layerwise 版本
+      <code>LwdSelfAttnBlockManager</code>）只关心「分配 / 释放 / 是否还能塞下」，具体怎么
+      分配交给可插拔的 <code>DeviceAwareBlockAllocator</code>。</p>
+
+      <h2 id="allocators">4. 分配器矩阵</h2>
+
+      <h3 id="hashless">4.1 HashlessBlockAllocator — 最朴素的 free list</h3>
+      <p>对应 <span class="path">src/block_manager/hashless_block_allocator.cpp</span>。
+      它不做任何前缀复用，只维护两个集合：「全部 block 索引」与「空闲 block 索引」。
+      申请就 <code>pop_front</code>，释放就 <code>push_back</code>。优势：实现简单 + O(1)。</p>
+
+      <h3 id="prefix">4.2 PrefixCacheBlockAllocator — 前缀复用</h3>
+      <p>这是 MindIE-LLM 默认开启的分配器（位于
+      <span class="path">prefix_cache_block_allocator.cpp</span>）。核心思路是把
+      <code>prefixHash → blockId</code> 存成一张 <code>cachedBlocks_</code> 表；
+      申请 <em>immutable</em> 块时先查表：</p>
+      <pre data-lang="cpp"><code>// 精简自 PrefixCacheBlockAllocator::AllocateImmutableBlock
+auto block = blockObjPool_-&gt;AcquireObj();
+block-&gt;InitBlockObj(prevBlock, tokenIds, sharedAttr, INVALID_BLOCKID, extraHash);
+
+HashValue key = block-&gt;PrefixHash();         // ① 计算前缀哈希
+auto it = cachedBlocks_.find(key);
+
+if (it != cachedBlocks_.end()) {            // ② 命中：复用旧 block
+    block-&gt;SetBlockId(it-&gt;second);
+    hitRateCalculator_-&gt;Record(true);
+    IncrRefCountCacheBlock(block);
+    return block;
+}
+
+// ③ 未命中：申请新 mutable，写入 cachedBlocks_
+hitRateCalculator_-&gt;Record(false);
+...</code></pre>
+      <p>命中后该 block 引用计数 +1，多个请求共享同一个 block，直接跳过 prefill 计算。</p>
+
+      <h4 id="hash">4.2.1 PrefixHash 是怎么算的</h4>
+      <p>看 <span class="path">prefix_cache_block.cpp</span>：</p>
+      <pre data-lang="cpp"><code>// 精简自 PrefixCachingBlockObj::PrefixHash
+if (cachedPrefixHash_ != INVALID_HASH_VALUE) return cachedPrefixHash_;
+if (!IsReadyToCalcPrefixHash()) return INVALID_HASH_VALUE;   // 必须填满 + 末位非 placeholder
+
+auto preBlock = GetPrevBlock();
+if (preBlock &amp;&amp; preBlock-&gt;PrefixHash() == INVALID_HASH_VALUE) return INVALID_HASH_VALUE;
+
+HashValue seed = 0;
+if (preBlock) HashCombine(seed, preBlock-&gt;PrefixHash());     // 拼接父 hash
+for (TokenId t : GetTokenIds())  HashCombine(seed, t);       // 当前 token 序列
+HashCombine(seed, extraHash_);                                // LoRA / 量化区分
+
+cachedPrefixHash_ = seed;
+return seed;</code></pre>
+      <p>三个细节决定可命中性：</p>
+      <ul>
+        <li>必须<strong>填满</strong>整 block 才有 hash — 半填的尾块永远不能命中。</li>
+        <li><strong>父 hash 缺失</strong>则当前 hash 也算不出 — 复用必须从 block 0 顺次。</li>
+        <li><strong>extraHash</strong> 把 LoRA id / 量化模式吃进去，避免错配。</li>
+      </ul>
+
+      <h3 id="cpu-npu">4.3 CpuNpuBlockAllocator — 异构两级池</h3>
+      <p>当 NPU 显存不够，把冷 KV 暂存到 CPU DRAM。看
+      <span class="path">cpu_npu_block_allocator.cpp</span>：</p>
+      <pre data-lang="cpp"><code>// 精简自 CpuNpuBlockAllocator 构造
+// CPU allocators 数 = hostSize_，对应主机视角的多份副本
+for (size_t i = 0; i &lt; hostSize_; ++i) {
+    cpuAllocators_.emplace_back(make_shared&lt;PrefixCacheBlockAllocator&gt;(
+        beginCpuBlockId_ + numCpuBlocks * i, numCpuBlocks, blockSize, blockObjPool));
+}
+// NPU allocators 数 = rankSize_，每张卡一份
+for (size_t i = 0; i &lt; rankSize; ++i) {
+    npuAllocators_.emplace_back(make_shared&lt;PrefixCacheBlockAllocator&gt;(
+        beginNpuBlockId, numNpuBlocks, blockSize, blockObjPool));
+}</code></pre>
+      <p>两侧共享同一个 <code>BlockObjPool</code>（块对象池），<code>blockId</code> 用一个连续
+      整数空间区分位置：</p>
+      <pre data-lang="cpp"><code>DeviceType CpuNpuBlockAllocator::GetDeviceTypeForBlockId(BlockId blockId) const {
+    return (blockId &lt; beginCpuBlockId_) ? DeviceType::NPU : DeviceType::CPU;
+}</code></pre>
+      <p><strong>Swap</strong>（CPU↔NPU 搬运）通过维护 <code>swapMapping_</code> 列表，
+      由调度器在 batch 装配时打包成 <code>blocksToSwapIn / blocksToSwapOut</code> 一并下发。</p>
+
+      <h2 id="ref-counter">5. 引用计数：避免错释放</h2>
+      <p><span class="path">ref_counter.cpp</span> 50 行就是全部：</p>
+      <pre data-lang="cpp"><code>// 精简自 RefCounter
+RefCount RefCounter::Increase(BlockId id) { return ++refCounts_[id]; }
+RefCount RefCounter::Decrease(BlockId id) { return --refCounts_[id]; }
+RefCount RefCounter::GetRefCount(BlockId id) const { return refCounts_.at(id); }</code></pre>
+      <p>规则：</p>
+      <ul>
+        <li>新 block：refCount = 1（创建者持有）。</li>
+        <li>命中 prefix cache：refCount += 1（多一个序列共享）。</li>
+        <li>序列结束：遍历 BlockTable，每块 refCount −= 1。</li>
+        <li>refCount 归 0 → 进入驱逐候选；归 0 且非 prefix-cached → 直接回收。</li>
+      </ul>
+
+      <h2 id="cow">6. Copy-on-Write：共享 block 的安全分裂</h2>
+      <p>当多个序列共享同一前缀 block，但其中一个要在该 block 内写入<strong>不同的</strong>
+      token（采样发散、beam search、并行采样），就需要 CoW。看
+      <span class="path">copy_on_write_tracker.cpp</span>：</p>
+      <pre data-lang="cpp"><code>// 精简自 CopyOnWriteTracker
+bool CopyOnWriteTracker::IsAppendable(BlockId blockId) const {
+    RefCount refCount = refCounterSPtr_-&gt;GetRefCount(blockId);
+    return refCount &lt;= 1;          // 唯一持有 → 直接追加
+}
+void CopyOnWriteTracker::RecordCow(BlockId src, BlockId tgt) {
+    copyOnWrites_.emplace_back(src, tgt);
+}
+auto pairs = cowTracker.ClearCows();   // 调度器读出来一并下发到 worker</code></pre>
+      <p>当 <code>IsAppendable=false</code>：分配器会申请新 block、把旧 block 内容复制过去，
+      并通过 <code>RecordCow(src, tgt)</code> 留个迁移记录；调度器把这些 <code>(src,tgt)</code> 对
+      塞进 <code>blocksToCopy_</code>，下发到 worker 触发 NPU 上的内存复制。</p>
+
+      <h2 id="lru">7. LRU 驱逐</h2>
+      <p>当 free list 空了，需要驱逐 refCount=0 的 block 让位。看
+      <span class="path">lru_evictor.cpp</span> 的核心：</p>
+      <pre data-lang="cpp"><code>// 精简自 LRUEvictor
+struct BlockMetaData { BlockId blockId; HashValue prefixHash;
+                       size_t numHashedTokens; TimeStamp lastAccessedTime; };
+// candidates_: BlockId → BlockMetaData （最新视图）
+// priorityQueue_: 优先级队列，按 lastAccessedTime 升序
+
+EvictionResult LRUEvictor::Evict() {
+    while (!priorityQueue_.empty()) {
+        auto data = priorityQueue_.top(); priorityQueue_.pop();
+        auto it = candidates_.find(data.blockId);
+        // 双重确认：堆里的时间戳与 candidates_ 里一致才真驱逐
+        if (it != candidates_.end() &amp;&amp; IsClose(it-&gt;second.lastAccessedTime, data.lastAccessedTime)) {
+            HashValue prefixHash = it-&gt;second.prefixHash;
+            candidates_.erase(it);
+            return {prefixHash, data.blockId};
+        }
+    }
+    throw std::runtime_error("No usable cache memory left");
+}</code></pre>
+      <p>这里有个工程细节：每次 <code>Update(blockId, lastAccessedTime)</code> 不会动堆 — 而是
+      简单地刷新 <code>candidates_</code> 中的时间戳；驱逐时用<strong>双重时间戳一致性检查</strong>
+      跳过过期项。当堆膨胀到 <code>candidates_.size() × LRU_EVICTOR_CLEANUP_THRESHOLD</code>
+      时调用 <code>Cleanup()</code> 重建堆。这避免了每次 update 都做 O(log n) 的 decrease-key。</p>
+
+      <h2 id="hit-rate">8. 命中率统计</h2>
+      <p>每次 <code>AllocateImmutableBlock</code> 调用都会在
+      <code>hitRateCalculator_-&gt;Record(true|false)</code> 留一笔，
+      <code>HitRateCalculator</code> 维护滑动窗口供 <code>/metrics</code> 读取。
+      命中率持续 &lt; 5% 时建议关闭 prefix cache 节省哈希开销。</p>
+
+      <h2 id="config">9. 关键配置</h2>
       <div class="table-wrap">
         <table>
           <thead><tr><th>参数</th><th>含义</th><th>建议</th></tr></thead>
           <tbody>
-            <tr><td><code>npuMemSize</code></td><td>NPU 上 KV 池容量（GiB）</td><td>留出 1–2 GB 余量给 forward 临时张量</td></tr>
-            <tr><td><code>cpuMemSize</code></td><td>CPU DRAM 上 KV 池容量（GiB）</td><td>仅在启用 KV Cache 池化时有意义</td></tr>
-            <tr><td><code>blockSize</code></td><td>每 block 容纳 token 数</td><td>16 / 32 是常用值，越小命中率高、表越长</td></tr>
-            <tr><td>开启 prefix cache</td><td><code>pluginParams.prefix_cache.enable=true</code></td>
-                <td>命中率 ≥ 30% 时收益明显</td></tr>
-            <tr><td>开启 KV 池化</td><td><code>pluginParams.kv_pool.enable=true</code></td>
-                <td>需保证 CPU ↔ NPU 带宽足够</td></tr>
+            <tr><td><code>blockSize</code></td><td>每 block 容纳 token 数</td><td>16 / 32 常用；越小命中率高、表越长</td></tr>
+            <tr><td><code>npuMemSize</code></td><td>NPU KV 池容量（GiB）</td><td>留 1–2 GB 给 forward 临时张量</td></tr>
+            <tr><td><code>cpuMemSize</code></td><td>CPU KV 池容量（GiB）</td><td>仅启用 KV 池化时有效</td></tr>
+            <tr><td>prefix cache</td><td><code>pluginParams.prefix_cache.enable=true</code></td><td>命中率 ≥ 30% 收益明显</td></tr>
+            <tr><td>KV 池化</td><td><code>pluginParams.kv_pool.enable=true</code></td><td>需保证 CPU↔NPU 带宽足够</td></tr>
           </tbody>
         </table>
       </div>
 
-      <h2 id="debug">问题排查</h2>
+      <h2 id="lifecycle">10. 一次完整生命周期</h2>
+      <ol>
+        <li><strong>请求到来</strong>：调度器调用
+          <code>blockManager-&gt;CanAllocate(seqGroup)</code> 返回
+          <code>OK / LATER / NEVER</code>。</li>
+        <li><strong>查 prefix cache</strong>：<code>PrefixCacheBlockAllocator</code> 计算 hash
+          逐 block 比对；命中 K 个则直接复用并 +1 引用。</li>
+        <li><strong>申请新 block</strong>：剩余 N − K 个走 free list 或触发
+          <code>LRUEvictor::Evict()</code>。</li>
+        <li><strong>建表</strong>：写入序列 <code>BlockTable</code>，发回调度器。</li>
+        <li><strong>token 增长</strong>：每次新 token <code>AppendTokenIds</code>；填满则申请下一块；
+          填满且非 placeholder 才计算 <code>PrefixHash</code> 加入 <code>cachedBlocks_</code>。</li>
+        <li><strong>分裂场景</strong>：若该 block 被 fork，CoW Tracker 触发复制并改写表项。</li>
+        <li><strong>序列结束</strong>：遍历 BlockTable 给每块 refCount −1；归 0 进入驱逐候选。</li>
+        <li><strong>显存紧张</strong>：调度器请求驱逐若干块，<code>LRUEvictor</code> 给出受害者；
+          若启用 KV 池化，先 Swap 到 CPU 而非直接释放。</li>
+      </ol>
+
+      <h2 id="debug">11. 排障常用思路</h2>
       <ul>
-        <li>显存 OOM 报错 → 减小 <code>maxBatchSize</code> 或 <code>maxPrefillTokens</code>。</li>
-        <li>Prefix Cache 命中率低 → 检查请求模板是否包含变量前缀（如时间戳），把变量后置。</li>
-        <li>Swap 抖动 → CPU pool 太小或访问局部性差，调大 <code>cpuMemSize</code>。</li>
-        <li>引用计数泄漏 → 主要发生在异常请求中断路径；可在
-            <code>HitRateCalculator</code> 与 <code>BlockTracker</code> 加日志辅助定位。</li>
+        <li>OOM → 减小 <code>maxBatchSize</code> / <code>maxPrefillTokens</code>；启用 KV Int8。</li>
+        <li>Prefix 命中率低 → 把请求模板里的<strong>变量前缀</strong>（时间戳、用户 id）后置。</li>
+        <li>Swap 抖动 → 检查 CPU 池容量、CPU↔NPU 带宽。</li>
+        <li>引用泄漏 → 在 <code>HitRateCalculator</code> 与 <code>BlockTracker</code> 加日志，
+          通常发生在异常请求中断路径。</li>
       </ul>
 
-      <h2 id="extension">扩展：写一个自定义分配器</h2>
+      <h2 id="extension">12. 扩展：写一个自定义分配器</h2>
       <ol>
-        <li>实现 <code>device_aware_block_allocator.h</code> 接口。</li>
-        <li>在 <code>self_attn_block_manager.cpp</code> 的构造逻辑中加分支，按
-            <code>backendConfig</code> 字段选择。</li>
-        <li>暴露指标到 <code>HitRateCalculator</code> 体系。</li>
-        <li>补充 <code>tests/dlt</code> 中的 block_manager 单测。</li>
+        <li>实现 <code>device_aware_block_allocator.h</code> 接口（<code>AllocateMutable / Immutable / Free / Fork / GetNumFree</code>）。</li>
+        <li>在 <code>self_attn_block_manager.cpp</code> 的构造分支加入按
+          <code>backendConfig.allocatorType</code> 选择。</li>
+        <li>视情况复用 / 替换 <code>RefCounter</code>、<code>LRUEvictor</code>。</li>
+        <li>暴露指标到 <code>HitRateCalculator</code>。</li>
+        <li>补 <code>tests/dlt</code> 中的 block_manager 单测。</li>
       </ol>
+
+      <h2 id="see-also">深入了解</h2>
+      <ul>
+        <li><a href="features/prefix-cache.html">特性详解：Prefix Cache</a></li>
+        <li><a href="features/kv-cache-pool.html">特性详解：KV Cache 池化</a></li>
+        <li><a href="features/kv-int8.html">特性详解：KV Cache Int8</a></li>
+        <li><a href="scheduler.html">调度器</a> — 与 Block Manager 紧耦合的另一半大脑</li>
+      </ul>

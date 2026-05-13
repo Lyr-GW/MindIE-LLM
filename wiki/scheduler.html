@@ -142,211 +142,256 @@
     </nav>
     <article>
       <h1>调度器</h1>
-      <p class="lead">调度器是 MindIE-LLM 的「请求大脑」。它决定 <em>哪些请求</em> 在
-      <em>哪一轮</em> 以 <em>什么 batch</em> 进入推理 — 直接决定 TTFT、TPOT、整体吞吐与 SLO 达成率。
-      本章拆解 <span class="path">src/scheduler/</span> 全部组件。</p>
+      <p class="lead">调度器决定 <em>哪些请求</em> 在 <em>哪一轮</em> 以 <em>什么 batch</em> 进入推理 —
+      是 LLM 推理服务吞吐 / 时延 / SLO 达成率的中枢。本章把
+      <span class="path">src/scheduler/</span> 整个目录从「请求队列」到「策略 / 时延预测器 /
+      Preempt」全部讲清楚，并附关键源码片段。</p>
 
-      <h2 id="goals">调度目标</h2>
-      <p>对一个 LLM 推理服务来说，「好调度」需要同时兼顾：</p>
-      <ul>
-        <li><strong>吞吐</strong>：在 NPU 算力 / 显存允许的前提下尽量组大 batch。</li>
-        <li><strong>时延</strong>：保证已开始的请求按 SLO 完成（TTFT / TPOT 不超阈值）。</li>
-        <li><strong>公平</strong>：避免长请求把短请求饿死。</li>
-        <li><strong>资源约束</strong>：KV block、跨卡通信、batch 内 padding 等的硬上限。</li>
-      </ul>
+      <h2 id="goals">1. 调度要回答的四个问题</h2>
+      <ol>
+        <li><strong>什么时候进入推理？</strong>新到达的请求进等待队列，组什么样的 batch
+          再下发？</li>
+        <li><strong>谁优先？</strong>FCFS、PDDS、Layerwise 等策略有什么差别？</li>
+        <li><strong>显存够不够？</strong>每轮组 batch 都要问 block_manager。</li>
+        <li><strong>SLO 风险吗？</strong>如果加入这个请求会让在飞请求超时怎么办？</li>
+      </ol>
 
-      <h2 id="anatomy">调度器组件全图</h2>
+      <h2 id="queues">2. 三个并发队列 + 一张 transferring 表</h2>
+      <p>看 <span class="path">src/scheduler/scheduler.h</span> 中 <code>Scheduler</code> 类成员：</p>
+      <pre data-lang="cpp"><code>// 摘自 scheduler.h（精简注释）
+ConcurrentDeque&lt;SequenceGroupSPtr&gt; waiting_;     // 待 prefill / 待拉 KV 的请求
+ConcurrentDeque&lt;SequenceGroupSPtr&gt; running_;     // 已分到 KV、正在 decode 的请求
+ConcurrentDeque&lt;SequenceGroupSPtr&gt; swapped_;     // KV 被换到 CPU 的请求
+ConcurrentMap&lt;SequenceId, SequenceGroupSPtr&gt; transferringMap_;  // 正在跨节点拉 KV</code></pre>
+      <p>「一切请求都在某个队列里」是理解调度器的第一原则。<code>Scheduler::Schedule()</code>
+      每轮做的事：把 <code>waiting</code> / <code>running</code> / <code>swapped</code> 的当前快照
+      喂给策略，由策略决定本轮 batch；<strong>原始队列仍是 concurrent，主线程仍能接收新请求</strong>。</p>
+
+      <h2 id="round">3. 一轮调度的全景</h2>
       <pre class="ascii-art">
-   ┌──────────────────────────────────────────────────────────┐
-   │                       Scheduler                          │
-   │                                                          │
-   │   ┌──────────────┐                                       │
-   │   │ pre_scheduler│  ← 把新请求加入等待队列                │
-   │   └──────┬───────┘                                       │
-   │          │                                               │
-   │          ▼                                               │
-   │   ┌──────────────────────────────────────────────────┐   │
-   │   │                 policy 选择器                    │   │
-   │   │   FCFS / PDDS / LayerwiseFCFS / Stage / Dyn...  │   │
-   │   │   (policy_factory + policy_helper)              │   │
-   │   └────────────────────┬────────────────────────────┘   │
-   │                        │                                 │
-   │                        ▼                                 │
-   │   ┌──────────────────────────────────────────────────┐   │
-   │   │         seq_group_collection (待选池)            │   │
-   │   └────────────────────┬────────────────────────────┘   │
-   │                        │  按预算选 batch                 │
-   │                        ▼                                 │
-   │   ┌──────────────┐                                       │
-   │   │post_scheduler│  ← 评估能否落入本轮 batch              │
-   │   └──────┬───────┘                                       │
-   │          │                                               │
-   │          ▼                                               │
-   │   ┌────────────────────────────────────┐                 │
-   │   │       latency_predictor            │ ← SLO 决策      │
-   │   │  prefill_regression / decode_      │                 │
-   │   │  regression / batch_latency_track  │                 │
-   │   └────────────────────────────────────┘                 │
-   └──────────────────────────────────────────────────────────┘
+   ┌────────────────────────────────────────────────────────────────┐
+   │ Scheduler::Schedule()                                          │
+   │                                                                │
+   │  ① DecidePDPriority()  → 决定本轮是 PrefillFirst/DecodeFirst/Mix │
+   │                                                                │
+   │  ② PrepCandidatesForPolicy()  → 把并发队列拷贝到策略私有 deque    │
+   │                                                                │
+   │  ③ policy.Apply(budget, candidates)                           │
+   │       ├── ApplyToWaitingQueue()    挑可 prefill 的请求          │
+   │       ├── ApplyToRunningQueue()    挑能继续 decode 的请求       │
+   │       ├── ApplyToSwappedQueue()    swap-in 等待回 NPU 的请求    │
+   │       └── 受 SchedulingBudget 约束（token / seq）              │
+   │                                                                │
+   │  ④ BackfillConcurrentQueue()  → 把未选中的请求放回原队列        │
+   │                                                                │
+   │  ⑤ ConvertToSchedulerOutput() → 给执行器一个可下发的 SchedulerOut │
+   │                                                                │
+   │  ⑥ RecordMetricsStatics()    → 输出 metrics                    │
+   └────────────────────────────────────────────────────────────────┘
 </pre>
 
-      <h2 id="two-stage">两阶段：pre / post scheduler</h2>
-      <ul>
-        <li><strong><code>pre_scheduler.cpp</code></strong>：在调度循环开始前，把
-        <em>新到达</em>的请求纳入等待队列，做基础校验（最大长度、参数合法性、是否启用
-        prefix cache 等）。它不做选择，只做「准入」。</li>
-        <li><strong><code>scheduler.cpp</code></strong>：本轮真正的调度，把候选 SeqGroup 经过策略
-        排序后按预算装入 batch。</li>
-        <li><strong><code>post_scheduler.cpp</code></strong>：选完之后做「事后评估」 — 是否触发
-        Preempt（驱逐）、是否需要 swap KV block、是否需要分裂 prefill。</li>
-      </ul>
+      <h2 id="budget">4. SchedulingBudget — 本轮的「钱包」</h2>
+      <p>预算决定本轮最多吃多少 token / 多少 seq。看
+      <span class="path">src/sequence/scheduling_budget.cpp</span>：</p>
+      <pre data-lang="cpp"><code>// 精简自 SchedulingBudget
+class SchedulingBudget {
+    size_t maxNumSeqs_;                  // ≤ maxBatchSize
+    size_t maxNumBatchedTokens_;         // ≤ maxPrefillTokens
+    size_t numCurSeqs_       = 0;
+    size_t numBatchedTokens_ = 0;
 
-      <h2 id="policy">策略族：<code>scheduler/policy/</code></h2>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>策略</th><th>文件</th><th>核心思想</th><th>典型场景</th></tr></thead>
-          <tbody>
-            <tr>
-              <td><strong>FCFS</strong></td>
-              <td><code>fcfs_policy.cpp</code></td>
-              <td>先到先服务，最朴素</td>
-              <td>无 SLO 压力的均质负载</td>
-            </tr>
-            <tr id="policy-pdds">
-              <td><strong>PDDS</strong></td>
-              <td><code>pdds_policy.cpp</code></td>
-              <td>Prefill–Decode Disaggregated Scheduling，按阶段分别打分；
-              decode 优先以保 TPOT，prefill 灵活组合以保 TTFT</td>
-              <td>长尾请求多、SLO 严格</td>
-            </tr>
-            <tr id="policy-layerwise">
-              <td><strong>LayerwiseFCFS</strong></td>
-              <td><code>layerwise_fcfs_policy.cpp</code></td>
-              <td>把 forward 拆到 layer 粒度，使 prefill / decode 可以在同一 step 中混合执行</td>
-              <td>长上下文 + 高并发解码</td>
-            </tr>
-            <tr>
-              <td><strong>StagePolicy</strong></td>
-              <td><code>policy/stage_policy/</code></td>
-              <td>面向 Pipeline / 阶段化模型的调度</td>
-              <td>多阶段流水推理</td>
-            </tr>
-            <tr>
-              <td><strong>DynamicBatchSize</strong></td>
-              <td><code>dynamic_batch_size.cpp</code> + <code>dynamic_batch_recorder.cpp</code></td>
-              <td>记录历史 batch 的延迟，自动调整下一轮 batch 上限</td>
-              <td>负载波动大</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <h3 id="policy-arch">策略接口</h3>
-      <p>所有策略实现 <code>policy.h</code> 中的接口（伪代码）：</p>
-      <pre data-lang="cpp"><code>class IPolicy {
-public:
-    virtual ~IPolicy() = default;
-
-    // 对当前候选集合按优先级排序
-    virtual void Sort(SeqGroupCollection& candidates,
-                      const SchedulingBudget& budget) = 0;
-
-    // 是否允许在本轮调度中容纳 sg
-    virtual bool CanAdmit(const SequenceGroup& sg,
-                          const SchedulingBudget& budget) const = 0;
-
-    // 选完后给上层的 hint（preempt / split 等）
-    virtual SchedulingHint OnSelected(const SequenceGroup& sg) = 0;
+    bool CanSchedule(size_t newTokens, size_t newSeqs) const {
+        return numBatchedTokens_ + newTokens &lt;= maxNumBatchedTokens_
+            &amp;&amp; numCurSeqs_      + newSeqs   &lt;= maxNumSeqs_;
+    }
+    void AddNumBatchedTokens(RequestId&amp; r, size_t n, size_t cached);
+    void AddNumSeqs        (RequestId&amp; r, size_t n);
 };</code></pre>
-      <p><code>policy_factory.cpp</code> 根据 <code>ScheduleConfig.templateType</code> 与开关
-      参数（如 <code>supportSelectBatch</code>、<code>splitFuseEnabled</code>）实例化具体策略。</p>
+      <p>策略在挑请求时会反复问 <code>budget.CanSchedule(...)</code>，命中即停。
+      Chunked Prefill 模式下 budget 还会维护
+      <code>partialPrefillOccupiedBudgetPerSlot_</code>：动态决定每个并发 prefill
+      占多少 token 配额，避免长 prompt 把整轮配额吃光。</p>
 
-      <h3 id="policy-helper">辅助工具</h3>
+      <h2 id="policy-iface">5. 策略统一接口</h2>
+      <p><span class="path">src/scheduler/policy/policy.h</span> 定义全部策略要实现的接口：</p>
+      <pre data-lang="cpp"><code>// 摘自 policy.h（精简）
+struct PolicyOutput {
+    std::deque&lt;SequenceGroupSPtr&gt;            withdrewSeqGroups_;     // 退回原队列
+    std::vector&lt;SequenceGroupSPtr&gt;           preemptedSeqGroups_;   // 被驱逐
+    std::vector&lt;ScheduledSequenceGroupSPtr&gt;  prefillSeqGroups_;     // 本轮 prefill
+    std::vector&lt;ScheduledSequenceGroupSPtr&gt;  decodeSeqGroups_;      // 本轮 decode
+    std::vector&lt;SequenceGroupSPtr&gt;           swappedOutSeqGroups_;
+    std::vector&lt;SequenceGroupSPtr&gt;           ignoredSeqGroups_;     // 永远拒绝
+    std::vector&lt;std::pair&lt;BlockId,BlockId&gt;&gt;  blocksToSwapIn_;
+    std::vector&lt;std::pair&lt;BlockId,BlockId&gt;&gt;  blocksToSwapOut_;
+    std::vector&lt;std::pair&lt;BlockId,BlockId&gt;&gt;  blocksToCopy_;          // CoW
+    size_t numPrefillGroups{0}, numBatchedTokens{0}, numPreempted{0};
+};
+
+class Policy {
+public:
+    virtual PolicyOutput Apply(SchedulingBudget&amp; budget,
+                               std::shared_ptr&lt;SeqGroupCollection&gt;&amp; collection) = 0;
+    bool newRequestFirst_{false};
+};</code></pre>
+      <p>策略输出不是 raw token，而是「哪些 seq group 进 batch、哪些 KV block 要 swap / copy」
+      这种调度层语义；后续由 <code>Scheduler::ConvertToSchedulerOutput()</code> 翻译为执行器
+      消费的格式。</p>
+
+      <h2 id="fcfs">6. FcfsPolicy — 最常用的实现</h2>
+      <p><span class="path">scheduler/policy/fcfs_policy.cpp</span> 是「First-Come-First-Serve」
+      的实现，但<strong>不是简单 FIFO</strong>。它根据 <code>pdPriorityType</code>
+      切换三种调度模式：</p>
+      <pre data-lang="cpp"><code>// 精简自 FcfsPolicy::Apply
+PolicyOutput FcfsPolicy::Apply(SchedulingBudget&amp; budget, ISeqGroupCollectionSPtr&amp; collection) {
+    PreprocessCollection(collection);
+    switch (collection-&gt;pdPriorityType_) {
+        case PDPriorityType::PREFILL_FIRST: return SchedulePrefill(budget);
+        case PDPriorityType::DECODE_FIRST:  return ScheduleDecode(budget);
+        case PDPriorityType::MIX:           return ScheduleChunkedPrefill(budget);
+        default: throw std::runtime_error("...");
+    }
+}</code></pre>
+      <p>三种模式的差异：</p>
       <ul>
-        <li><strong><code>policy_helper.cpp</code></strong>：常用工具，如计算请求剩余长度、
-        预估 KV 占用、判断是否命中 prefix cache 等，避免每个策略各写一遍。</li>
-        <li><strong><code>seq_group_collection.cpp</code></strong>：候选池抽象，提供按状态、
-        按 lora_id、按命中率等切片视图。</li>
-        <li><strong><code>dynamic_batch_recorder.cpp</code></strong>：滑动窗口记录最近 N 轮的
-        实际 batch 大小与延迟，作为 DynamicBatchSize 的输入。</li>
+        <li><strong>PREFILL_FIRST</strong>：只动 waiting 队列，做整段 prefill。决策最简单，
+          适合纯 prefill 实例（PD 分离的 P 端）。</li>
+        <li><strong>DECODE_FIRST</strong>：先动 running 队列把 decode 排满；只有当 running
+          没有发生 preempt / swap 时，才尝试 swap-in。适合 D 端。</li>
+        <li><strong>MIX</strong>（chunked prefill）：先动 running，再动 waiting；
+          先生成
+          <code>Statistics4PartialPrefill</code> 决定可同时进行的 partial prefill 数量，
+          做到「decode 与 chunk-prefill 同 step 执行」。</li>
       </ul>
 
-      <h2 id="latency">时延预测：<code>latency_predictor/</code></h2>
-      <p>SLO 调度优化（详见 <a href="acceleration.html">加速特性</a>）依赖时延预测器对
-      「如果把这个请求加入 batch，会不会让在飞请求超时」做出判断。组件：</p>
-      <ul>
-        <li><strong><code>prefill_regression.cpp/h</code></strong>：根据 prefill 长度、batch 大小、
-        模型规模拟合 prefill 耗时（线性或多项式回归）。</li>
-        <li><strong><code>decode_regression.cpp/h</code></strong>：拟合 decode 耗时（受 batch 大小、
-        running KV block 数量影响）。</li>
-        <li><strong><code>queue_counter.cpp/h</code></strong>：监测当前等待队列长度。</li>
-        <li><strong><code>batch_latency_tracker.cpp/h</code></strong>：实测每轮 batch 的延迟，
-        定期更新回归参数。</li>
-        <li><strong><code>latency_predictor.cpp/h</code></strong>：聚合上述子组件，给调度器
-        提供 <code>PredictPrefill(...)</code> / <code>PredictDecode(...)</code> 接口。</li>
-      </ul>
-      <p>有了它，调度器就能在「为了吞吐组更大 batch」与「为了 SLO 让一部分请求等下一轮」
-      之间做加权决策。</p>
+      <h2 id="pdds">7. PDDSPolicy — PD 分离场景</h2>
+      <p><span class="path">policy/pdds_policy.cpp</span> 继承自 <code>FcfsPolicy</code>，
+      根据本实例 <em>角色</em>（P/D）选择路径：</p>
+      <pre data-lang="cpp"><code>// 精简自 PDDSPolicy::Apply
+PolicyOutput PDDSPolicy::Apply(SchedulingBudget&amp; budget, std::shared_ptr&lt;SeqGroupCollection&gt;&amp; col) {
+    PreprocessCollection(col);
+    switch (role_) {
+        case Role::P:
+            if (schedulerConfig_-&gt;enableChunkedPrefill) return ScheduleChunkedPrefill(budget);
+            return SchedulePrefill(budget);
+        case Role::D:
+            return ScheduleDecode(budget);
+        default: throw std::runtime_error("...");
+    }
+}</code></pre>
+      <p>同一个仓库还在该文件里实现了 <code>KVTransferSchedulePolicy</code> — D 端用来从 P 端
+      <em>拉 KV</em> 的调度策略。它做的事情：</p>
+      <ol>
+        <li>从 waiting 队列取 seqGroup；</li>
+        <li>检查 NPU 还剩多少 free block，预留
+          <code>PRESERVED_FACTOR_FOR_DECODE × totalBlocks</code> 给 decode；</li>
+        <li>调用 <code>blockManager_-&gt;CanAllocate</code> 决定 OK / LATER / NEVER；</li>
+        <li>调用 <code>budget.CanSchedule</code> 终判；</li>
+        <li>分配 KV，把请求放入 <code>pullSeqGroups</code> 准备从 P 端拉 KV。</li>
+      </ol>
 
-      <h2 id="cb-pa">Continuous Batching 与 PagedAttention</h2>
-      <p>这两项是 MindIE-LLM 的<strong>默认能力</strong>，调度器层面体现：</p>
+      <h2 id="layerwise">8. LayerwiseFCFS — 把 forward 切到 layer 粒度</h2>
+      <p>常规调度以「整个 model.forward()」为最小执行单元；layerwise 调度则把每一层都拿出来
+      和别的请求混排：</p>
+      <pre class="ascii-art">
+   传统：[ Req1 prefill 30 layer ][ Req2 decode 30 layer ][ Req3 decode 30 layer ]
+   LWD ：[ R1.L0 R2.L0 R3.L0 ][ R1.L1 R2.L1 R3.L1 ] … 同步推进
+</pre>
+      <p>带来的好处：</p>
       <ul>
-        <li><strong>Continuous Batching</strong>：每一轮 forward 都会重新组 batch；
-        某个序列结束后立即被新请求填补，不像静态 batch 那样等齐。</li>
-        <li><strong>PagedAttention</strong>：调度器与 <a href="block-manager.html">block_manager</a>
-        协作 — 在准入阶段先估算「这一轮需要多少 KV block」，不够则拒入或触发驱逐。</li>
+        <li>长 prompt 不再阻塞短请求；</li>
+        <li>跨请求的 layer-by-layer 可调度更细，配合 LWD 专用 block manager 减少显存高峰。</li>
       </ul>
+      <p>实现侧由 <code>LayerwiseFcfsPolicy</code> + <code>LwdSelfAttnBlockManager</code> +
+      <code>LayerwiseMixin</code>（<a href="cpp-engine.html#mixin">cpp-engine</a>）三方共同构成。</p>
 
-      <h2 id="splitfuse">SplitFuse / Chunk Prefill 的调度切入</h2>
-      <p>当 <code>splitFuseEnabled=true</code>：</p>
+      <h2 id="latency">9. 时延预测器 — SLO 调度的眼睛</h2>
+      <p>看 <span class="path">scheduler/latency_predictor/latency_predictor.cpp</span>：</p>
+      <pre data-lang="cpp"><code>// 精简自 LatencyPredictor
+void LatencyPredictor::UpdateBatchStats() {
+    // 每轮调度结束后，把 batch 的实际执行时长喂给回归器
+    BatchStatsPtr s = batchStatsMap_.Get(batchId_).value();
+    s-&gt;batchSpendTimeFloat = duration_cast&lt;ms&gt;(now - s-&gt;batchStartTime).count();
+    if (s-&gt;forwardMode == ForwardMode::PREFILL) {
+        prefillRegression_.AddDataPoint(s-&gt;numBatchedTokens, s-&gt;batchSpendTimeFloat);
+        prefillLatency_.AddDataPoint(s-&gt;batchSpendTimeFloat);
+    } else {
+        decodeRegression_.AddDataPoint(s-&gt;numBatchedTokens, s-&gt;kvCacheBlockNum,
+                                       s-&gt;batchSpendTimeFloat);
+    }
+}
+
+float LatencyPredictor::PredictBatchExecTime(BatchStats&amp; s) {
+    if (s.forwardMode == ForwardMode::PREFILL)
+        return prefillRegression_.Predict(s.numBatchedTokens);
+    return decodeRegression_.Predict(s.numBatchedTokens, s.kvCacheBlockNum);
+}</code></pre>
+      <p>三个组件协作：</p>
       <ul>
-        <li>调度器把长 prompt（超过 <code>maxPrefillTokens</code>）拆成多个 chunk。</li>
-        <li>每一轮可以同时执行：A 请求 chunk-prefill + B 请求 decode。</li>
-        <li>策略侧由 <code>policy_helper</code> 计算切分点，<code>post_scheduler</code> 标记
-        哪些请求处于「prefill 中」状态。</li>
+        <li><code>prefillRegression_</code> — 输入 (token 数) → 输出 prefill 耗时。</li>
+        <li><code>decodeRegression_</code> — 输入 (batch 大小, KV block 数) → 输出 decode 耗时。</li>
+        <li><code>prefillLatency_ / decodeLatency_</code> — 滑动窗口百分位统计，用来看 P50/P99。</li>
       </ul>
+      <p>有了它，调度器在「为吞吐组更大 batch」与「为 SLO 让一部分请求等下一轮」之间就能做加权决策。</p>
 
-      <h2 id="preempt">驱逐与 Swap</h2>
-      <p>当 KV block 不足以容纳所有 running 请求时，调度器会触发 <strong>preempt</strong>：</p>
+      <h2 id="preempt">10. 抢占（Preemption）：当显存不够</h2>
+      <p>看 <span class="path">scheduler.h</span>：</p>
+      <pre data-lang="cpp"><code>enum class PreemptionMode : int { NONE = 0, SWAP, RECOMPUTE };</code></pre>
       <ul>
-        <li><strong>Recompute</strong>：丢弃部分序列的 KV，下次重新 prefill（最简单）。</li>
-        <li><strong>Swap</strong>：把 KV 从 NPU 搬到 CPU 或 SSD（需 <code>cpu_npu_block_allocator</code>
-        支持）。</li>
-        <li>策略由 <code>maxPreemptCount</code> 等参数与具体 policy 决定，避免抖动。</li>
+        <li><strong>RECOMPUTE</strong>：把序列从 running 移回 waiting，KV 直接释放；下次重新 prefill。</li>
+        <li><strong>SWAP</strong>：把序列 KV 从 NPU 搬到 CPU（需 <code>CpuNpuBlockAllocator</code>），
+          状态进入 <code>swapped_</code>；条件成熟再 swap-in。</li>
       </ul>
+      <p><code>maxPreemptCount</code> 限制每轮最多抢占次数，避免抖动。</p>
 
-      <h2 id="async">异步调度</h2>
-      <p>对应 <a href="acceleration.html#async">加速特性 → 异步调度</a>：</p>
-      <ul>
-        <li>调度循环与 NPU 执行解耦，使数据准备 / 数据回收的 host 时间被 NPU 计算掩盖。</li>
-        <li>实现层面通过额外的等待 / 唤醒线程与 <code>maxQueueDelayMicroseconds</code> 配合。</li>
-      </ul>
+      <h2 id="metrics">11. 调度指标</h2>
+      <p>scheduler.h 顶部定义了一组原子指标 <code>SchedulerMetricsStatics</code>，
+      在每轮 <code>RecordMetricsStatics</code> 中刷新，最终经
+      <code>/metrics</code> 导出：</p>
+      <pre data-lang="cpp"><code>std::atomic&lt;uint64_t&gt; freeNpuBlockNum_, freeCpuBlockNum_;
+std::atomic&lt;uint64_t&gt; waitingRequestNum_, runningRequestNum_, swappedRequestNum_;
+std::atomic&lt;uint64_t&gt; prefillThroughput_, decodeThroughput_;
+std::atomic&lt;uint64_t&gt; cumulativePreemptCount_;
+std::atomic&lt;uint64_t&gt; allRadixMatchNum_, npuRadixMatchHitNum_; // 前缀缓存命中</code></pre>
 
-      <h2 id="config-tune">关键调优参数</h2>
+      <h2 id="config">12. 关键调优参数</h2>
       <div class="table-wrap">
         <table>
           <thead><tr><th>参数</th><th>调大效果</th><th>调小效果</th></tr></thead>
           <tbody>
-            <tr><td><code>maxPrefillBatchSize</code></td><td>吞吐 ↑、TTFT ↓ 风险 ↑</td><td>TTFT 稳但吞吐 ↓</td></tr>
-            <tr><td><code>maxPrefillTokens</code></td><td>支持长 prompt 同 batch</td><td>切 chunk 的概率 ↑</td></tr>
-            <tr><td><code>maxBatchSize</code></td><td>decode 吞吐 ↑、显存占用 ↑</td><td>显存安全、TPS ↓</td></tr>
+            <tr><td><code>maxPrefillBatchSize</code></td><td>吞吐 ↑ / TTFT 风险 ↑</td><td>TTFT 稳 / 吞吐 ↓</td></tr>
+            <tr><td><code>maxPrefillTokens</code></td><td>支持长 prompt 同 batch</td><td>切 chunk 概率 ↑</td></tr>
+            <tr><td><code>maxBatchSize</code></td><td>decode 吞吐 ↑ / 显存 ↑</td><td>显存安全 / TPS ↓</td></tr>
             <tr><td><code>maxIterTimes</code></td><td>允许更长输出</td><td>提前截断保护资源</td></tr>
             <tr><td><code>maxQueueDelayMicroseconds</code></td><td>异步聚合更激进</td><td>响应更快</td></tr>
-            <tr><td><code>supportSelectBatch</code></td><td>动态选 batch，更聪明</td><td>更可预测</td></tr>
+            <tr><td><code>maxPreemptCount</code></td><td>资源紧张时更激进抢占</td><td>抢占抖动 ↓</td></tr>
+            <tr><td><code>longPrefillTokenThreshold</code></td><td>更多请求被认为「长」</td><td>更多走快路径</td></tr>
+            <tr><td><code>maxLongPartialPrefills</code></td><td>同时进行的长 prefill 更多</td><td>队列等待更久</td></tr>
+            <tr><td><code>enableChunkedPrefill</code></td><td>开启 SplitFuse</td><td>关闭，回到 PD 顺序</td></tr>
           </tbody>
         </table>
       </div>
 
-      <h2 id="extension">扩展：实现你自己的调度策略</h2>
+      <h2 id="extension">13. 扩展：实现你自己的策略</h2>
       <ol>
-        <li>在 <code>src/scheduler/policy/</code> 新建 <code>my_policy.cpp/h</code>，继承
-            <code>IPolicy</code>。</li>
-        <li>实现 <code>Sort / CanAdmit / OnSelected</code> 三个方法。</li>
-        <li>在 <code>policy_factory.cpp</code> 增加分支：根据
-            <code>ScheduleConfig.templateType="MyPolicy"</code> 实例化。</li>
-        <li>在 <code>tests/dlt</code> 与 <code>tests/pythontest</code> 补充对应单测。</li>
-        <li>在 <a href="development.html">开发与贡献</a> 流程下提 PR。</li>
+        <li>在 <code>scheduler/policy/</code> 新建 <code>my_policy.cpp/h</code>，继承 <code>Policy</code>；</li>
+        <li>实现 <code>Apply()</code>，按需复用 <code>FcfsPolicy::ApplyToWaitingQueue</code> 等
+          底层方法，或直接重写；</li>
+        <li>在 <code>policy_factory.cpp</code> 增加根据
+          <code>ScheduleConfig.templateType="MyPolicy"</code> 的实例化分支；</li>
+        <li>用 <code>SchedulingBudget</code> 控制 token / seq 上限；</li>
+        <li>对外暴露：选择性地把策略相关指标加入 <code>SchedulerMetricsStatics</code>；</li>
+        <li>在 <code>tests/dlt/scheduler/</code> 加单测。</li>
       </ol>
+
+      <h2 id="see-also">深入了解</h2>
+      <ul>
+        <li><a href="features/async-scheduling.html">特性详解：异步调度</a></li>
+        <li><a href="features/splitfuse.html">特性详解：SplitFuse / Chunked Prefill</a></li>
+        <li><a href="features/slo-scheduling.html">特性详解：SLO 调度优化</a></li>
+        <li><a href="features/prefix-cache.html">特性详解：Prefix Cache</a> — 调度器 ↔ Block Manager 的协同</li>
+        <li><a href="block-manager.html">KV Cache &amp; Block Manager</a> — 调度器的另一半大脑</li>
+      </ul>
 
     </article>
 
