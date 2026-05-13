@@ -1,72 +1,440 @@
 ---
 title: 投机解码 / Lookahead
 ---
-      <h1>并行解码 — Speculative Decoding / Lookahead / Memory Decoding</h1>
-      <p class="lead">用「先猜 N 个 token、再用主模型一次性校验」的方式，把多步 decode
-      压缩成一次 forward。本特性是<strong>访存受限场景</strong>的吞吐利器。</p>
+      <h1>投机解码（Speculative Decoding）— 用算存比把 decode 吞吐拉起来</h1>
+      <p class="lead">「<strong>用一次 forward 同时生成 / 验证 K 个 token</strong>」是 LLM 推理领域近三年
+      最重要的吞吐优化思想。本章从 <em>算存比（Arithmetic Intensity）</em> 出发，把投机解码的<strong>原理、
+      数学、业界全景与 MindIE-LLM 的实现</strong>讲透；并给出工程调优方法论。</p>
 
-      <h2 id="why">动机</h2>
-      <p>Decode 阶段每步只算 1 个 token，每步都要把整个权重从 HBM 读一遍 — 计算资源大量空闲、
-      访存带宽 100% 占用。如果一次 forward 同时验证 N 个候选 token，就能在<strong>同样访存</strong>
-      下输出 N 个 token。</p>
+      <div class="admonition tip">
+        <div class="admonition-title">📚 阅读路线</div>
+        <p>1–3 节：为什么 decode 是<em>访存瓶颈</em>，投机解码如何「白嫖」算力 ——
+        即使是新人也能看懂。<br>
+        4–5 节：业界主要算法的 1 张图 + 1 段公式综述。<br>
+        6–7 节：MindIE-LLM 内置 <code>memory_decoding</code> / <code>la</code>
+        的工程实现细节。<br>
+        8–9 节：调优 + 失败模式 + 未来。</p>
+      </div>
 
-      <h2 id="algos">两种算法（互斥）</h2>
+      <h2 id="bottleneck">1. Decode 阶段的「算存比悖论」</h2>
+
+      <h3 id="prefill-vs-decode">Prefill vs Decode：完全不同的硬件画像</h3>
+      <pre class="ascii-art">
+                       Prefill                 Decode
+   每次 forward 算多少 :  L 个 token            1 个 token
+   权重读取             :  整个模型 1 遍         整个模型 1 遍
+   计算 / 访存比       :  ~ L 次 / 字节         ~ 1 次 / 字节
+   硬件画像             :  Compute-bound        Memory-bound
+   GPU/NPU 利用率      :  > 70%                10–30%
+</pre>
+
+      <p>看个 70B 稠密模型的真实数字（fp16，单卡）：</p>
+      <ul>
+        <li><strong>权重总量</strong>：~140 GB；</li>
+        <li><strong>HBM 带宽</strong>：~1.5 TB/s；</li>
+        <li><strong>读完整组权重</strong>：140 / 1500 ≈ 90 ms — 这就是 decode 单步的访存下限；</li>
+        <li><strong>算力</strong>：~300 TFLOPS（fp16）；</li>
+        <li><strong>实际单步算力需求</strong>：每个 token 约 2 × 70B FLOPs = 140 GFLOPs；</li>
+        <li><strong>占总算力比</strong>：140 GFLOPs / (300 TFLOPS × 0.09 s) ≈ <strong>0.5%</strong>。</li>
+      </ul>
+      <p>结论：<strong>Decode 阶段 NPU 算力 99% 在空转，瓶颈是带宽。</strong></p>
+
+      <h3 id="arithmetic-intensity">「算存比」的数学定义</h3>
+      <pre data-lang="text"><code>Arithmetic Intensity (AI)
+  ≜ 算子的 FLOPs / 算子访问的字节数
+  单位 : FLOPs / Byte
+
+设备的「拐点 AI」
+  ≜ 设备峰值算力 (FLOPs/s) / HBM 带宽 (Byte/s)
+  对昇腾、A100、H100 都是 100~400 区间</code></pre>
+      <p>Roofline 模型：</p>
+      <pre class="ascii-art">
+   性能 (FLOPs/s)
+        │      ┌────────── 受算力限     (compute-bound)
+        │     ╱
+        │    ╱
+        │   ╱
+        │  ╱  ← 受带宽限 (memory-bound)
+        │ ╱     性能 = AI × 带宽
+        ╰────────────────────────────→  AI (FLOPs/Byte)
+        ↑              ↑
+       低 AI         拐点 AI
+     decode 在这       prefill 在这
+</pre>
+      <p>Decode 单 token 的 <code>AI ≈ 1</code>，<strong>远低于</strong> 设备拐点的 100–400；落在斜率部分，性能由
+      带宽线性决定。这意味着：<strong>每 byte 数据吐出的 token 越多，吞吐越高。</strong></p>
+
+      <h3 id="batching-not-enough">为什么单纯增大 batch 不够？</h3>
+      <p>大 batch 是直观解法 — 同一份权重服务 N 个请求，AI 提升 N 倍。但实践中：</p>
+      <ul>
+        <li><strong>显存上限</strong>：KV Cache 与 batch 线性增长，64 路并发后显存往往打满。</li>
+        <li><strong>SLO 限制</strong>：batch 越大每步越慢，TPOT 上升，长尾用户体验下降。</li>
+        <li><strong>请求到达不均</strong>：低 QPS 时空 batch 比比皆是。</li>
+      </ul>
+      <p>所以即便已经「调大 batch」，仍要找<strong>另一种增大 AI 的方式</strong> — 这就是投机解码的切入点。</p>
+
+      <h2 id="core-idea">2. 投机解码的核心 idea</h2>
+
+      <p>把传统 decode：</p>
+      <pre class="ascii-art">
+   step t   : 读权重 一次 → 算 1 token →  out_t
+   step t+1 : 读权重 一次 → 算 1 token →  out_{t+1}
+   step t+K : 读权重 一次 → 算 1 token →  out_{t+K}
+                ↑↑
+        每步只产 1 token，AI ≈ 1
+</pre>
+
+      <p>改成：</p>
+      <pre class="ascii-art">
+   step S   : 廉价 draft 模型 / 算法 → 给出 γ 个候选 token
+   step V   : 主模型读权重 一次 → 一并验证 γ 个 token →  通过 k 个 (k ≤ γ)
+                ↑↑
+        权重只读一次，但产 1+k 个 token，AI ≈ 1+k
+</pre>
+
+      <p><strong>关键观察</strong>：主模型一次 forward 的访存与 batch=γ 是一样的（都是把权重整套读一遍），
+      但是<strong>每个 token 的输出</strong>都享受到了同一次权重读取 — AI 直接放大 1+k 倍。
+      又因为 decode 阶段算力本来就是空转的，加一点 verify 计算也几乎不增加单步耗时。</p>
+
+      <p>这就是 <em>「<strong>用算力换访存，反过来用访存喂算力</strong>」</em>的本质。</p>
+
+      <h2 id="math">3. 期望加速：数学公式</h2>
+
+      <p>设：</p>
+      <ul>
+        <li><strong>γ</strong>：每轮 draft 提交的候选 token 数（speculation length）；</li>
+        <li><strong>α</strong>：单 token 接受率（draft 与主模型预测一致的概率）；</li>
+        <li><strong>c</strong>：draft 模型 vs 主模型 forward 的成本比率（&lt; 1）；</li>
+        <li><strong>τ</strong>：主模型一次 forward 的耗时；</li>
+      </ul>
+
+      <p>朴素 decode 每 token 耗时为 τ。投机解码每个 verification 周期：</p>
+      <pre data-lang="text"><code>T_period   = γ·c·τ + τ                       // draft + 1 次 verify
+E[tokens]  = (1 − α^(γ+1)) / (1 − α)         // 这一轮预期吐出 token 数
+                                              // 简化记号：α=0 时降为 1，α=1 时趋于 γ+1
+
+加速比     = E[tokens] / (γ·c + 1)
+            ≈ (1 − α^(γ+1)) / [(1 − α)(γ·c + 1)]</code></pre>
+
+      <p>三个直觉：</p>
+      <ul>
+        <li><strong>α 越高，加速越大</strong>。draft 越像主模型越好。</li>
+        <li><strong>γ 不能太大</strong>。γ 大了 draft 成本占比也大，且 α^(γ+1) 接近 0；存在最优 γ*。</li>
+        <li><strong>c 越小越好</strong>。这就是 <em>「draft 模型要尽可能廉价」</em> 的来源。</li>
+      </ul>
+
+      <p>典型场景下（α=0.7, c=0.05, γ=4），加速比 ≈ 2.5–3 倍 — 这与 Google 原始论文（α=0.6, ~2x）、
+      EAGLE-2（α=0.85, ~3x）的实测一致。</p>
+
+      <h2 id="taxonomy">4. 业界投机解码全景图</h2>
+
+      <p>所有方案都在回答两个问题：「<strong>draft 哪来？</strong>」「<strong>verify 怎么做？</strong>」</p>
+
+      <h3 id="t1">① Draft 来源</h3>
+
       <div class="table-wrap">
         <table>
-          <thead><tr><th>算法</th><th>候选 token 来源</th><th>适用场景</th></tr></thead>
+          <thead><tr><th>来源</th><th>典型方案</th><th>特点</th></tr></thead>
           <tbody>
-            <tr><td><strong>memory_decoding</strong></td><td>前缀树（Trie）缓存历史输入输出</td><td>代码生成 / 检索类（重复 pattern 多）</td></tr>
-            <tr><td><strong>lookahead (la)</strong></td><td>Jacobi 迭代 + prompt + 输出结果</td><td>文本生成 / 对话 / 多样化问答</td></tr>
+            <tr>
+              <td><strong>独立小模型</strong></td>
+              <td>Speculative Decoding (Leviathan, Google '23)</td>
+              <td>用同家族小一档模型（7B vs 70B）。最直接、最经典；要训练 + 部署 draft。</td>
+            </tr>
+            <tr>
+              <td><strong>模型自身的多输出头</strong></td>
+              <td>Medusa, Medusa-2</td>
+              <td>给主模型加 N 个并行输出头，每个头预测「下下个」「下下下个」。无需 draft 模型；需要轻量微调。</td>
+            </tr>
+            <tr>
+              <td><strong>模型自身的特征自回归</strong></td>
+              <td>EAGLE, EAGLE-2, EAGLE-3</td>
+              <td>把主模型的 hidden state 作为 draft 输入，再一个轻量自回归头预测下一 hidden 与 token。比 Medusa 更准。</td>
+            </tr>
+            <tr>
+              <td><strong>主模型自迭代</strong></td>
+              <td>Lookahead Decoding (Fu et al., UCSD '24)</td>
+              <td>用 Jacobi 迭代从主模型自身的 N-gram 缓存生成候选；不需要训练，但接受率较低。</td>
+            </tr>
+            <tr>
+              <td><strong>检索 / 缓存</strong></td>
+              <td>REST, PLD, Memory Decoding</td>
+              <td>从 prompt / 历史输出 / 知识库里检索相似 token 串作为候选。代码、长文档场景接受率极高。</td>
+            </tr>
+            <tr>
+              <td><strong>自跳层</strong></td>
+              <td>Self-Speculative Decoding</td>
+              <td>主模型「跳一些层」做 draft，再用全层 verify。零额外参数。</td>
+            </tr>
+            <tr>
+              <td><strong>训练时多 token 监督</strong></td>
+              <td>MTP（DeepSeek-V3）</td>
+              <td>训练阶段就让模型学会预测多个未来 token，自带 MTP head。接受率最高、最稳定。</td>
+            </tr>
           </tbody>
         </table>
       </div>
 
-      <h2 id="memory">memory_decoding</h2>
-      <pre data-lang="json"><code>"speculationGamma": 16,
-"ModelConfig": [{
-  "plugin_params":"{\"plugin_type\":\"memory_decoding\",\
-                    \"decoding_length\":16,\"dynamic_algo\":true}",
-  "modelName": "llama3-70b",
-  ...
-}]</code></pre>
-      <ul>
-        <li><code>decoding_length</code> ∈ [1,16]：候选最大长度。</li>
-        <li><code>dynamic_algo=true</code>：根据上下文自适应候选长度。</li>
-        <li><code>speculationGamma</code> ≥ <code>decoding_length</code>。</li>
-        <li>当 <code>dynamic_algo=true</code>，<code>maxIterTimes ≥ 期望输出长度 + speculationGamma</code>。</li>
-      </ul>
+      <h3 id="t2">② Verify 结构</h3>
 
-      <h2 id="la">lookahead (la)</h2>
-      <pre data-lang="json"><code>"speculationGamma": 30,
-"ModelConfig": [{
-  "plugin_params":"{\"plugin_type\":\"la\",\"level\":4,\"window\":5,\"guess_set_size\":5}",
-  "modelName": "Qwen2.5-7B-Instruct",
-  ...
-}]</code></pre>
-      <p>Lookahead 用 Jacobi 迭代直接从主模型自身的 N-gram 缓存生成候选；不需要额外 draft 模型。</p>
-      <ul>
-        <li><code>level (N) / window (W) / guess_set_size (G)</code> ∈ [1,16]，默认 4 / 5 / 5。</li>
-        <li><code>speculationGamma ≥ (N-1) × (W+G)</code>，建议取等。</li>
-      </ul>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>结构</th><th>说明</th><th>代表</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Sequence (γ-token)</strong></td>
+                <td>把 γ 个候选当作一段拼到 prompt 后，主模型一次 forward 输出 γ+1 个 logits，
+                  逐个比对至首个不一致位置。</td>
+                <td>原始 Speculative Decoding</td></tr>
+            <tr><td><strong>Tree (token 树)</strong></td>
+                <td>同一次 forward 验证<em>多条</em>候选路径（共享前缀的 trie）；接受率 ↑。</td>
+                <td>SpecInfer / Medusa-2 / EAGLE-2</td></tr>
+            <tr><td><strong>Tree + 排序剪枝</strong></td>
+                <td>验证前对树节点用 draft 概率打分，仅保留 top-K 子树进 verify。</td>
+                <td>EAGLE-2 / EAGLE-3</td></tr>
+          </tbody>
+        </table>
+      </div>
 
-      <h2 id="when">何时收益最大</h2>
+      <h3 id="t3">③ 接受规则</h3>
+
+      <pre data-lang="text"><code>// 原始论文（无偏精确）：rejection sampling
+if  rand() &lt; min(1, p_main(t) / p_draft(t)):
+    accept t
+else:
+    reject t,  resample from   max(0, p_main(t) − p_draft(t))
+
+// 工程优化（贪婪 / 低温场景常用）：top-1 比对
+if  argmax p_main == draft_token:
+    accept
+else:
+    reject (replace with main's argmax, 后续候选丢弃)</code></pre>
+
+      <p>原始规则保证<strong>分布无偏</strong>（输出与主模型完全一致）；top-1 比对在 temperature ≤ 0.7 / 贪婪场景
+      实践中差异极小，但实现极简单，是大部分工程实现的默认。</p>
+
+      <h2 id="mindie">5. MindIE-LLM 提供哪些</h2>
+
+      <p>本仓库内置 <strong>3 套</strong>投机解码方案：</p>
       <ol>
-        <li>并发较低（内存带宽受限）；</li>
-        <li>有较长输入提供候选 token 来源；</li>
-        <li>有较长输出（推理步数足够多）；</li>
-        <li>贪婪 / 低温度采样（验证通过率高）。</li>
+        <li><strong><code>memory_decoding</code></strong> — 检索式（前缀树），适合代码 / 长文档；</li>
+        <li><strong><code>la</code> (Lookahead Decoding)</strong> — 自迭代式（Jacobi），适合通用对话；</li>
+        <li><strong><a href="mtp.html">MTP</a></strong> — 训练时多 token 监督（仅 DeepSeek-V3 / R1 系列）。</li>
       </ol>
 
-      <h2 id="impl">在 Python 框架中的实现</h2>
-      <p>位于 <a href="../python-runtime.html#plugins">mindie_llm/text_generator/plugins/</a>：</p>
-      <ul>
-        <li><code>plugins/la/</code>：lookahead 实现。</li>
-        <li><code>plugins/memory_decoding/</code>：memory decoding 实现。</li>
-      </ul>
-      <p>调度器侧把每个 step 的 <code>numBatchedTokens</code> 设为 1 + N，
-      模型 forward 一次同时算 N+1 个 token；后处理层根据校验通过的 token 数推进序列。</p>
+      <p>对应 <a href="../python-runtime.html#plugins">mindie_llm/text_generator/plugins/</a>：</p>
 
-      <h2 id="limit">已知限制</h2>
+      <pre data-lang="text"><code>plugins/
+├── la/                 # Lookahead 实现：Jacobi 迭代 + N-gram 池
+├── memory_decoding/    # 前缀树（trie）缓存
+├── mtp/                # MTP head 调用 + 多 token 校验
+└── plugin_manager.py   # 三者共享的调度钩子</code></pre>
+
+      <h3 id="memory-decoding">memory_decoding 详解</h3>
+
+      <p>核心数据结构：<strong>每模型实例一棵全局 Trie 树</strong>，节点存 token id，每条边权重为出现频次。
+      新输入 / 输出 token 都被插入到 trie。</p>
+
+      <pre data-lang="text"><code>// 每步 decode 前
+prefix_window = last_K_tokens_of_current_seq      // K = 4 或 8
+candidates    = trie.match_longest_branch(prefix_window, max_len = decoding_length)
+candidates    = candidates[: γ]                    // 截断到 γ
+// 主模型一次 forward 验证 candidates</code></pre>
+
+      <p>当 <code>dynamic_algo=true</code>，根据上一轮的<strong>实际接受 token 数</strong>动态调整下一轮 γ：</p>
+      <pre data-lang="text"><code>if  acc_rate &lt; 0.3 :  γ ← max(1, γ − 1)        // 命中率太差，缩短候选
+elif acc_rate &gt; 0.7 :  γ ← min(decoding_length, γ + 1)  // 命中率好，加长 ROI</code></pre>
+
+      <p><strong>命中率</strong>：</p>
+      <ul>
+        <li>代码生成（自身 token 重复率高）：α ≈ 0.7–0.85；</li>
+        <li>检索 / 翻译（输入也在 trie 里）：α ≈ 0.6–0.8；</li>
+        <li>开放对话：α ≈ 0.3–0.5（不适合，建议改用 la 或 MTP）。</li>
+      </ul>
+
+      <h3 id="lookahead-detail">la (Lookahead Decoding) 详解</h3>
+
+      <p>Lookahead 是 UCSD 团队 2024 年提出的方法，<strong>不需要任何 draft 模型 / head</strong>。
+      它把单步 decode 改造成 <strong>Jacobi 迭代</strong>：</p>
+
+      <pre data-lang="text"><code>原始 (Auto-Regressive) :
+  y_1 = f(x, [y_0])
+  y_2 = f(x, [y_0, y_1])
+  ...
+
+Jacobi （并行猜并行修正）:
+  initialize  ŷ = [random / repeated tokens]    长度 W (window)
+  while not converged:
+      ŷ' = f(x, ŷ)      // 一次 forward 同时算 W 个位置
+      若 ŷ' 与 ŷ 在前 k 位一致 → accept k 个 token
+      否则 ŷ ← ŷ' 继续迭代</code></pre>
+
+      <p>Lookahead 在 Jacobi 之上叠了两个增强：</p>
+      <ul>
+        <li><strong>N-gram pool</strong>：每次迭代收集出现的 N-gram，存到一个池里。下一次迭代用池里的
+          N-gram 作为「候选种子」，加速收敛。</li>
+        <li><strong>Verification branch</strong>：每步同时验证池中的多个候选（树状），多分支并行 verify。</li>
+      </ul>
+
+      <p>三个超参数：</p>
+      <pre data-lang="text"><code>level (N) ∈ [3, 16]   N-gram 长度（越长越准但越难命中）
+window (W) ∈ [1, 16]  每步并行猜的位置数
+guess_set_size (G)    每步 verify 的候选分支数</code></pre>
+
+      <p>论文经验：N=4, W=5, G=5 是大多数任务的甜点。<code>speculationGamma ≥ (N−1)·(W+G)</code> 是
+      引擎侧的预算配置（保证 KV slot 够用）。</p>
+
+      <h3 id="mtp-detail">MTP 详解（链接）</h3>
+
+      <p>MTP 详见 <a href="mtp.html">MTP 详解页</a>。它是<strong>训练阶段就引入</strong>的多 token 预测，
+      所以接受率比 la / memory_decoding 高得多（α ≈ 0.85+）。代价是模型必须自带 MTP head（DeepSeek-V3 系
+      原生支持）。</p>
+
+      <h2 id="api">6. MindIE-LLM 启用方式</h2>
+
+      <h3 id="memory-decoding-cfg">memory_decoding 配置</h3>
+
+      <pre data-lang="json"><code>"speculationGamma": 16,
+"ScheduleConfig": { "maxIterTimes": 1024 },
+"ModelConfig": [{
+  "plugin_params": "{\"plugin_type\":\"memory_decoding\",\"decoding_length\":16,\"dynamic_algo\":true}",
+  "modelName": "llama3-70b",
+  "modelWeightPath": "/data/weights/llama3-70b",
+  "worldSize": 4,
+  "backendType": "atb"
+}]</code></pre>
+      <ul>
+        <li><code>decoding_length</code> ∈ [1, 16]：候选最大长度。</li>
+        <li><code>dynamic_algo</code>：开了后引擎按接受率自适应 γ。</li>
+        <li><code>speculationGamma</code> ≥ <code>decoding_length</code>。</li>
+        <li>开 <code>dynamic_algo</code> 时，<code>maxIterTimes ≥ 期望输出长度 + speculationGamma</code>。</li>
+      </ul>
+
+      <h3 id="la-cfg">la (Lookahead) 配置</h3>
+
+      <pre data-lang="json"><code>"speculationGamma": 30,
+"ModelConfig": [{
+  "plugin_params": "{\"plugin_type\":\"la\",\"level\":4,\"window\":5,\"guess_set_size\":5}",
+  "modelName": "Qwen2.5-7B-Instruct",
+  "modelWeightPath": "/data/weights/Qwen2.5-7B-Instruct",
+  "worldSize": 1,
+  "backendType": "atb"
+}]</code></pre>
+
+      <h3 id="mtp-cfg">MTP 配置</h3>
+      <pre data-lang="json"><code>"plugin_params": "{\"plugin_type\":\"mtp\",\"num_speculative_tokens\":1}"</code></pre>
+      <p>详见 <a href="mtp.html">MTP 详解页</a>。</p>
+
+      <h2 id="when-which">7. 什么场景用哪个？</h2>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>场景特征</th><th>推荐</th><th>原因</th></tr></thead>
+          <tbody>
+            <tr><td>代码 / SQL / 模板填充</td>
+                <td><code>memory_decoding</code></td>
+                <td>历史 N-gram 高度重复，trie 命中率最高</td></tr>
+            <tr><td>长文档摘要 / 检索式问答</td>
+                <td><code>memory_decoding</code></td>
+                <td>prompt 的 token 在输出中频繁出现</td></tr>
+            <tr><td>开放对话 / 创作</td>
+                <td><code>la</code></td>
+                <td>无明显重复，但 Jacobi 自迭代仍可救出 1.5–2x</td></tr>
+            <tr><td>DeepSeek-V3 / R1 上的<em>所有</em>场景</td>
+                <td><code>mtp</code></td>
+                <td>原生 MTP head 接受率最高，吞吐 +30–60%</td></tr>
+            <tr><td>低温度 / 贪婪解码</td>
+                <td>三者皆收益放大</td>
+                <td>top-1 比对接受率上升</td></tr>
+            <tr><td>高温度 / 多样化采样</td>
+                <td>谨慎</td>
+                <td>分布扁平 → α 下降 → 投机收益打折</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p><strong>快速选型决策树</strong>：</p>
+      <pre class="ascii-art">
+   是 DeepSeek-V3/R1 ?
+        │
+        ├─ Yes →  MTP
+        └─ No  →  代码 / 长文档 / 检索  →  memory_decoding
+                  其它（对话 / 创作）   →  la
+</pre>
+
+      <h2 id="tuning">8. 工程调优方法论</h2>
+
+      <h3 id="step1">第 1 步：测出当前接受率 α</h3>
+      <p>开启投机解码后，从日志或 <code>/metrics</code> 中读 <code>speculative_accept_rate</code>。
+      也可以手动测：跑同一 prompt 100 次，统计 verify 通过数 / 总 verify 数。</p>
+
+      <h3 id="step2">第 2 步：根据 α 选 γ</h3>
+      <p>对加速比公式求 γ 偏导可得最优解，工程上记忆三档即可：</p>
+      <pre data-lang="text"><code>α ≈ 0.5 → γ* ≈ 2~3
+α ≈ 0.7 → γ* ≈ 4~6
+α ≈ 0.85+ → γ* ≈ 7~10</code></pre>
+
+      <p>γ 太大的副作用：</p>
+      <ul>
+        <li>每轮多吃 KV slot（<code>maxBatchSize</code> 受限）；</li>
+        <li>调度更不稳定（每轮实际产 token 数方差大）；</li>
+        <li>α^(γ+1) 急速衰减时收益变负。</li>
+      </ul>
+
+      <h3 id="step3">第 3 步：vs 不开测对比</h3>
+      <p>不要相信论文宣称的 X 倍 — 在<strong>你的</strong> batch / SLO / 输入分布下重测：</p>
+      <pre data-lang="bash"><code># 比较
+ais_bench --models vllm_api_stream_chat --datasets ... --mode perf
+# 关注三个指标：
+#  Output Token Throughput  ← 是否真的提升
+#  TPOT (P99)              ← 是否引入抖动
+#  TTFT                    ← 投机解码常常让 prefill 期间多算 trie，TTFT 略升</code></pre>
+
+      <h3 id="step4">第 4 步：监控生产</h3>
+      <ul>
+        <li>实时跟踪 α 滑动窗口；α 持续下降可能是分布漂移（业务变化），考虑切换算法或关闭。</li>
+        <li>监控 KV 命中率：投机解码会消耗更多 KV slot，可能让 OOM 风险上升。</li>
+      </ul>
+
+      <h2 id="failure-modes">9. 常见失败模式 / 避坑</h2>
+
+      <ul>
+        <li><strong>γ 调太大、命中率反降</strong>。trie 太深 / Jacobi 长链都会让接受率断崖。
+          表现：开了反而更慢。<em>解</em>：先用 <code>dynamic_algo=true</code> 让引擎自适应。</li>
+        <li><strong>高温度 + 投机解码</strong>。分布扁平后 top-1 比对的接受率近似 α ≈ 1/V_eff（V_eff
+          是有效词表大小），收益消失。<em>解</em>：开 temperature ≤ 0.7 或换无偏 rejection sampling 路径。</li>
+        <li><strong>KV slot 抢占</strong>。投机解码每个序列每轮多占 γ 个 slot；调度器看到同样
+          maxBatchSize 但实际占用 ×(γ+1)。<em>解</em>：相应调小 maxBatchSize 或调大显存因子。</li>
+        <li><strong>流式接口表现奇怪</strong>。一次吐 1+k 个 token 的「跳跃」会让前端动画
+          不平滑。<em>解</em>：前端做 token 平滑展示（每 30 ms 吐一个）。</li>
+        <li><strong>MTP / la 与 SplitFuse 等冲突</strong>。详见 <a href="../features.html">兼容矩阵</a>。
+          这些组合需要对调度器做较大改造，目前 MindIE-LLM 选择了「互斥」路线。</li>
+      </ul>
+
+      <h2 id="frontier">10. 前沿与未来</h2>
+
+      <p>三个值得关注的方向：</p>
+      <ol>
+        <li><strong>EAGLE-3 + Tree Verify</strong>（2024–2025）：用主模型 hidden state 自回归生成 draft，配合
+          token 树 verify，业界报告 SOTA 加速比 3–5×。MindIE-LLM 短期内可能引入类似形态。</li>
+        <li><strong>Tandem / Heterogeneous</strong>：用<em>不同位宽</em>的同模型做 draft（如 W4A8 当 draft、
+          W8A8 当 main），训练 0 改动 + 部署同权重。</li>
+        <li><strong>Continuous Speculative</strong>：让投机解码与 Continuous Batching 深度融合，
+          每轮 batch 中允许「<strong>不同序列采用不同 γ</strong>」 — 这是当前调度器最棘手但收益最大的优化点。</li>
+      </ol>
+
+      <h2 id="impl-pointer">11. 源码定位</h2>
+
+      <ul>
+        <li>插件入口：<span class="path">mindie_llm/text_generator/plugins/{la,memory_decoding,mtp}/</span></li>
+        <li>调度器侧的 γ 槽位预算：<span class="path">src/sequence/scheduling_budget.cpp</span> +
+          <span class="path">src/scheduler/scheduler.cpp</span> 中 <code>speculationGamma</code> 字段</li>
+        <li>校验逻辑：<span class="path">mindie_llm/text_generator/samplers/</span> 中
+          <code>verify</code> 相关 op</li>
+        <li>多 token 后处理：<span class="path">src/engine/model_exec_output_handler.cpp</span></li>
+      </ul>
+
+      <h2 id="limit">已知限制（合并自前一版）</h2>
+
       <ul>
         <li>Atlas 800I A2、Atlas 300I Duo 支持。</li>
         <li>LLaMA3、Qwen2 / 2.5、Qwen3-14B / 32B 支持。</li>
@@ -82,8 +450,25 @@ title: 投机解码 / Lookahead
       </ul>
 
       <h2 id="ref">参考</h2>
+
+      <h3 id="ref-papers">关键论文</h3>
       <ul>
-        <li>本仓库官方文档：<code>docs/zh/user_guide/feature/speculative_decoding.md</code></li>
-        <li>论文：<em>Speculative Decoding</em>、<em>Lookahead Decoding</em>（UCSD）</li>
-        <li>类似机制（DeepSeek 自带）：<a href="mtp.html">MTP</a></li>
+        <li>Leviathan et al., <em>Fast Inference from Transformers via Speculative Decoding</em>, ICML 2023</li>
+        <li>Cai et al., <em>Medusa: Simple LLM Inference Acceleration with Multiple Decoding Heads</em>, 2024</li>
+        <li>Li et al., <em>EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty</em>, 2024</li>
+        <li>Li et al., <em>EAGLE-2: Faster Inference of Language Models with Dynamic Draft Trees</em>, 2024</li>
+        <li>Fu et al., <em>Lookahead Decoding</em>, UCSD blog &amp; ICML 2024</li>
+        <li>Miao et al., <em>SpecInfer: Accelerating Generative LLM Serving with Tree-based Speculative Inference</em>, 2024</li>
+        <li>He et al., <em>REST: Retrieval-Based Speculative Decoding</em>, 2024</li>
+        <li>Saxena et al., <em>Prompt Lookup Decoding</em> (PLD)</li>
+        <li>DeepSeek Team, <em>DeepSeek-V3 Technical Report</em>（包含 MTP）</li>
+        <li>Williams &amp; Asanovic, <em>Roofline: An Insightful Visual Performance Model</em>, 2009</li>
+      </ul>
+
+      <h3 id="ref-internal">本仓库内</h3>
+      <ul>
+        <li><code>docs/zh/user_guide/feature/speculative_decoding.md</code></li>
+        <li><a href="mtp.html">特性详解：MTP</a></li>
+        <li><a href="../scheduler.html">调度器</a> — 投机解码与调度协作的关键</li>
+        <li><a href="../block-manager.html">KV Cache &amp; Block Manager</a> — γ 槽位预算依赖块管理</li>
       </ul>
