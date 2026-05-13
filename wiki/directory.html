@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>目录结构 · MindIE-LLM Wiki</title>
+<meta name="description" content="目录结构 — MindIE-LLM Wiki（华为昇腾大语言模型推理引擎）">
+<link rel="icon" href="assets/img/favicon.ico">
+<link rel="stylesheet" href="assets/css/wiki.css">
+</head>
+<body>
+<header class="site-header">
+  <a class="brand" href="index.html">
+    <img src="assets/img/ascend-logo.png" alt="Ascend">
+    <span>MindIE-<span class="accent">LLM</span> Wiki</span>
+  </a>
+  <div class="header-spacer"></div>
+  <nav class="header-links">
+    <a href="https://github.com/Lyr-GW/MindIE-LLM" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://gitcode.com/Ascend/MindIE-LLM" target="_blank" rel="noopener">GitCode</a>
+    <a href="https://www.hiascend.com/" target="_blank" rel="noopener">昇腾社区</a>
+  </nav>
+  <button class="theme-toggle" type="button">☾ 暗色</button>
+  <button class="menu-toggle" type="button" aria-label="菜单">☰</button>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <input class="sidebar-filter" placeholder="筛选目录…" aria-label="筛选目录">
+    <nav>
+      <div class="nav-group">
+        <div class="nav-group-title">入门</div>
+        <ul>
+          <li><a href="index.html">首页</a></li>
+          <li><a href="introduction.html">项目简介</a></li>
+          <li><a href="quick-start.html">快速入门</a></li>
+          <li><a href="installation.html">安装与编译</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">架构与内核</div>
+        <ul>
+          <li><a href="architecture.html">架构总览</a></li>
+          <li><a href="directory.html">目录结构</a></li>
+          <li><a href="server-api.html">服务端与 API</a></li>
+          <li><a href="cpp-engine.html">C++ 引擎内核</a></li>
+          <li><a href="scheduler.html">调度器</a></li>
+          <li><a href="block-manager.html">KV Cache &amp; Block</a></li>
+          <li><a href="python-runtime.html">Python 推理框架</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">特性</div>
+        <ul>
+          <li><a href="features.html">特性总览</a></li>
+          <li><a href="quantization.html">量化特性</a></li>
+          <li><a href="parallelism.html">并行策略</a></li>
+          <li><a href="acceleration.html">加速特性</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">开发</div>
+        <ul>
+          <li><a href="development.html">开发与贡献</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">参考</div>
+        <ul>
+          <li><a href="faq.html">常见问题</a></li>
+          <li><a href="references.html">参考资料</a></li>
+        </ul>
+      </div>
+    </nav>
+  </aside>
+
+  <main class="content">
+    <nav class="breadcrumb">
+      <a href="index.html">首页</a><span class="sep">›</span><span>架构与内核</span><span class="sep">›</span><span>目录结构</span>
+    </nav>
+    <article>
+      <h1>目录结构</h1>
+      <p class="lead">本章按「顶层 → <code>src/</code> 子模块 → <code>mindie_llm/</code> 子模块」
+      三个层次解读仓库布局，帮助你快速定位想读的代码。</p>
+
+      <h2 id="top">顶层目录</h2>
+      <pre class="ascii-art">
+MindIE-LLM/
+├── mindie_llm/         # Python 推理框架主模块
+├── src/                # C++ 引擎核心
+├── proto/              # gRPC / 进程间通信 protobuf
+├── examples/           # 示例代码（含 atb_models 后端）
+├── docs/               # 官方 mkdocs 中文文档
+├── scripts/            # 构建 / 部署 / 打包脚本
+├── tools/              # 辅助工具与示例
+├── tests/              # 单元 / 集成 / 模糊测试
+├── cmake/              # CMake 模块（FindXxx.cmake 等）
+├── pre-commit/         # pre-commit hook 脚本
+├── third_party_entry/  # 第三方依赖入口（占位）
+├── requirements/       # 各场景 Python 依赖
+├── CMakeLists.txt      # 根 CMake 配置
+├── build.sh            # 一键构建入口
+├── setup.py / setup_mindie_llm.py / pyproject.toml
+├── README.md / contributing.md / security.md / LICENSE.md
+└── mkdocs.yml          # mkdocs 文档配置
+</pre>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>目录</th><th>主要内容</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><code>mindie_llm/</code></td><td>Python 包源码</td>
+              <td>对外发布的 <code>mindie_llm</code> wheel 主体</td></tr>
+            <tr><td><code>src/</code></td><td>C++ 引擎</td>
+              <td>编译产出 <code>libllm_*.so</code> 与 <code>mindie_llm_server</code></td></tr>
+            <tr><td><code>proto/</code></td><td><code>model_execute_data.proto</code></td>
+              <td>主进程 ↔ worker 间的执行结果协议</td></tr>
+            <tr><td><code>examples/atb_models/</code></td><td>ATB 模型后端</td>
+              <td>含 <code>atb_framework</code> / <code>atb_llm</code> 适配层</td></tr>
+            <tr><td><code>docs/zh/</code></td><td>mkdocs 文档源</td>
+              <td>用户 / 开发指南 / FAQ / 架构图</td></tr>
+            <tr><td><code>scripts/</code></td><td>构建脚本</td>
+              <td>详见 <a href="installation.html#source-scripts">安装与编译</a></td></tr>
+            <tr><td><code>tools/</code></td><td>辅助工具</td>
+              <td><code>llm_manager_python_api_demo</code> 旧 Python API 示例</td></tr>
+            <tr><td><code>tests/</code></td><td>测试用例</td>
+              <td>含 <code>dlt</code>、<code>fuzztest_llmmanager</code>、<code>pythontest</code></td></tr>
+            <tr><td><code>cmake/</code></td><td>CMake 模块</td>
+              <td>查找 CANN / ATB / Python / gRPC 等</td></tr>
+            <tr><td><code>pre-commit/</code></td><td>钩子脚本</td>
+              <td>配合 <code>.pre-commit-config.yaml</code> 做代码检查</td></tr>
+            <tr><td><code>third_party_entry/</code></td><td>第三方占位</td>
+              <td>实际依赖在构建脚本中拉取或对接系统包</td></tr>
+            <tr><td><code>requirements/</code></td><td>分场景依赖</td>
+              <td>测试 / 文档 / 运行依赖分文件维护</td></tr>
+            <tr><td><code>style.cfg</code> / <code>.clang-format</code></td><td>代码风格</td>
+              <td>C++ 与 Python 通用风格定义</td></tr>
+            <tr><td><code>config.conf</code></td><td>占位配置</td>
+              <td>仅 42 字节，含构建期默认配置项</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="src">C++ 引擎：<code>src/</code></h2>
+      <pre class="ascii-art">
+src/
+├── engine/             # LLMEngine 主逻辑
+├── scheduler/          # 调度策略 + 时延预测
+├── block_manager/      # KV Cache 块管理
+├── llm_manager/        # 旧版 Manager + Python 桥
+├── llm_manager_v2/     # 新版 Manager
+├── server/             # 守护进程 + 协议接入
+├── executor/           # 主从进程通信
+├── sequence/           # 序列与上下文
+├── config_manager/     # 静态 / 动态配置
+├── load_balance/       # 多实例负载均衡
+├── kernels/            # 自定义算子
+├── py_interface/       # Python ↔ C++ 数据互转
+├── utils/              # 共享内存 / 加密 / 日志 / id 生成
+├── include/            # 对外公开头文件
+└── CMakeLists.txt
+</pre>
+
+      <h3 id="src-detail">核心子目录速查</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>子目录</th><th>关键文件</th><th>职责</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>engine/</code></td>
+              <td><code>llm_engine.cpp/h</code>、<code>scheduler_config.cpp</code>、
+                  <code>buffered_responser.h</code>、<code>seq_group_builder_from_infer_req.*</code>、
+                  <code>construct_execute_request.*</code>、<code>model_exec_output_handler.*</code>、
+                  <code>transfer_output_handler.*</code>、<code>lora_manager.*</code>、
+                  <code>layerwise_mixin.cpp</code>、<code>loraops_mixin.cpp</code></td>
+              <td>把上层的 InferRequest 串成 SequenceGroup、组 batch、回写 token。详见
+                  <a href="cpp-engine.html">C++ 引擎内核</a>。</td>
+            </tr>
+            <tr>
+              <td><code>scheduler/</code></td>
+              <td><code>scheduler.cpp/h</code>、<code>pre_scheduler.*</code>、<code>post_scheduler.*</code>、
+                  <code>policy/</code>（<code>fcfs_policy</code>、<code>pdds_policy</code>、
+                  <code>layerwise_fcfs_policy</code>、<code>stage_policy</code>、
+                  <code>policy_factory</code>、<code>policy_helper</code>、
+                  <code>seq_group_collection</code>、<code>dynamic_batch_size</code>），
+                  <code>latency_predictor/</code></td>
+              <td>请求入队 / 等待 / 出队的调度大脑。</td>
+            </tr>
+            <tr>
+              <td><code>block_manager/</code></td>
+              <td><code>self_attn_block_manager.*</code>、<code>lwd_self_attn_block_manager.*</code>、
+                  <code>hashless_block_allocator.*</code>、<code>prefix_cache_block_allocator.*</code>、
+                  <code>cpu_npu_block_allocator.*</code>、<code>device_aware_block_allocator.h</code>、
+                  <code>lru_evictor.*</code>、<code>copy_on_write_tracker.*</code>、
+                  <code>ref_counter.*</code>、<code>hit_rate_calculator.*</code>、
+                  <code>block_table.*</code>、<code>block_tracker.*</code>、<code>obj_pool.h</code></td>
+              <td>PagedAttention / Prefix Cache / KV 池化的全部实现。</td>
+            </tr>
+            <tr>
+              <td><code>llm_manager/</code></td>
+              <td><code>llm_manager.cpp</code>、<code>llm_manager_adapter.*</code>、
+                  <code>infer_request_impl.cpp</code>、<code>llm_infer_request.cpp</code>、
+                  <code>llm_infer_response.cpp</code>、<code>infer_tensor.cpp</code>、
+                  <code>python_api/</code></td>
+              <td>对外 C++ / Python API；新代码请用
+                  <code>llm_manager_v2/</code> 提供的接口。</td>
+            </tr>
+            <tr>
+              <td><code>server/</code></td>
+              <td><code>daemon/llm_daemon.cpp</code>、<code>endpoint/</code>（含
+                  <code>http_wrapper</code>、<code>grpc_wrapper</code>、<code>health_checker</code>、
+                  <code>single_llm_req_handler</code>、<code>single_req_infer_interface</code>、
+                  <code>endpoint_def.*</code>、<code>endpoint.cpp</code>、<code>utils</code>），
+                  <code>conf/</code>、<code>scripts/</code>、<code>tokenizer/</code>、
+                  <code>infer_instances/</code>、<code>include/</code>、<code>options.cmake</code></td>
+              <td>对外协议层 + 守护进程入口。</td>
+            </tr>
+            <tr>
+              <td><code>executor/</code></td>
+              <td><code>executor.*</code>、<code>communicator.*</code>、
+                  <code>grpc_communicator.*</code>、<code>ipc_communicator.*</code></td>
+              <td>主进程 ↔ worker 通信抽象（gRPC / IPC 双形态）。</td>
+            </tr>
+            <tr>
+              <td><code>sequence/</code></td>
+              <td><code>sequence.cpp</code>、<code>sequence_group.cpp</code>、
+                  <code>live_infer_context.cpp</code>、<code>scheduling_budget.cpp</code></td>
+              <td>请求 / 序列 / 上下文 / 调度预算建模。</td>
+            </tr>
+            <tr>
+              <td><code>config_manager/</code></td>
+              <td><code>base_config_manager.h</code>、<code>config_manager_impl.*</code>、
+                  <code>server_config.cpp</code>、<code>backend_config.cpp</code>、
+                  <code>schedule_config.cpp</code>、<code>model_deploy_config.cpp</code>、
+                  <code>ranktable_config.cpp</code>、<code>config_dynamic_handler.cpp</code>、
+                  <code>config_interaction.*</code>、<code>param_checker.cpp</code></td>
+              <td>解析与校验所有配置；支持运行时动态修改。</td>
+            </tr>
+            <tr>
+              <td><code>load_balance/</code></td>
+              <td><code>load_balancer.*</code>、<code>balance_policy/</code></td>
+              <td>多 worker 实例的请求分发策略。</td>
+            </tr>
+            <tr>
+              <td><code>llm_manager_v2/</code></td>
+              <td>下一代 Manager，承担更现代的 API（与新 Python 框架对齐）</td>
+              <td>逐步替换旧 <code>llm_manager/</code></td>
+            </tr>
+            <tr>
+              <td><code>kernels/</code></td>
+              <td>自定义算子 / kernel 实现</td>
+              <td>构建脚本 <code>scripts/build_kernels.sh</code></td>
+            </tr>
+            <tr>
+              <td><code>py_interface/</code></td>
+              <td>Python 与 C++ 之间的数据 / 张量互转</td>
+              <td>通常被 <code>llm_manager/python_api</code> 调用</td>
+            </tr>
+            <tr>
+              <td><code>utils/</code></td>
+              <td>日志 / 共享内存 / 加密 / id 生成 / 字符串等基础工具</td>
+              <td>无业务依赖</td>
+            </tr>
+            <tr>
+              <td><code>include/</code></td>
+              <td>对外公开头文件</td>
+              <td>第三方集成时只需依赖此目录</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="mindie">Python 框架：<code>mindie_llm/</code></h2>
+      <pre class="ascii-art">
+mindie_llm/
+├── connector/          # 请求接入层
+├── text_generator/     # 推理工作流（含 plugins）
+├── modeling/           # 模型抽象
+├── runtime/            # 运行时（layers、ops、tokenizer、lora、…）
+├── distributed/        # 分布式通信封装
+├── server/             # 入口脚本（main.py）
+├── tokenizer/          # 自研 / 包装 tokenizer
+├── model_wrapper/      # 模型包装器
+├── examples/           # 示例代码
+└── utils/              # 工具（logger、tensor_utils、validator…）
+</pre>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>子目录</th><th>关键内容</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><code>connector/</code></td>
+                <td><code>main.py</code>、<code>request_listener/</code>、<code>request_router/</code>、
+                    <code>cpp/</code>、<code>common/</code></td>
+                <td>从 C++ Server 拿到请求后，路由到具体的 Python text_generator 实例。</td></tr>
+            <tr><td><code>text_generator/</code></td>
+                <td><code>generator.py</code>、<code>adapter/</code>、<code>samplers/</code>、
+                    <code>mempool/</code>、<code>plugins/</code>、<code>cpp/</code>、<code>utils/</code></td>
+                <td>核心自回归循环；插件机制实现 Prefix Cache、SplitFuse、MTP、LA、
+                    Memory Decoding、Structured Output 等。</td></tr>
+            <tr><td><code>modeling/</code></td>
+                <td><code>backend_type.py</code>、<code>model_wrapper/atb/</code></td>
+                <td>定义后端类型，对接 ATB Models / ACLGraph。</td></tr>
+            <tr><td><code>runtime/</code></td>
+                <td><code>model_runner/</code>、<code>models/</code>、<code>compilation/</code>、
+                    <code>tokenizer/</code>、<code>config/</code>、<code>conf/</code>、<code>lora/</code>、
+                    <code>utils/</code>、<code>layers/</code>、<code>ops/</code></td>
+                <td>真正调用昇腾算子的运行时。详见
+                    <a href="python-runtime.html">Python 推理框架</a>。</td></tr>
+            <tr><td><code>distributed/</code></td>
+                <td>分布式通信封装</td>
+                <td>处理 TP / DP / EP 各组通信组管理。</td></tr>
+            <tr><td><code>server/main.py</code></td>
+                <td>独立 Python 服务入口</td>
+                <td>用于无 C++ daemon 的轻量调试场景。</td></tr>
+            <tr><td><code>tokenizer/</code></td>
+                <td>词表与分词器封装</td>
+                <td>支持 fast tokenizer 加速。</td></tr>
+            <tr><td><code>model_wrapper/</code></td>
+                <td>模型包装层</td>
+                <td>把开源模型包装成统一 forward 接口。</td></tr>
+            <tr><td><code>examples/</code></td>
+                <td>Python 调用示例</td>
+                <td>调试、二次开发参考。</td></tr>
+            <tr><td><code>utils/</code></td>
+                <td>日志 / 张量 / Profiling / 校验</td>
+                <td>所有 Python 模块共享。</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 id="plugins">Text Generator 内置插件</h3>
+      <p>路径：<span class="path">mindie_llm/text_generator/plugins/</span></p>
+      <ul>
+        <li><code>prefix_cache</code> — Prefix Cache 命中复用</li>
+        <li><code>splitfuse</code> — 长 Prefill 切块调度</li>
+        <li><code>memory_decoding</code> — 基于历史 KV 的快速解码</li>
+        <li><code>la</code> — Lookahead Decoding</li>
+        <li><code>mtp</code> — Multi-Token Prediction</li>
+        <li><code>structured_output</code> — JSON / 正则约束输出</li>
+        <li><code>layer_skipped</code> — 跳层推理</li>
+        <li><code>plugin_manager.py</code> / <code>plugin_manager_lwd.py</code> /
+            <code>plugin.py</code> — 插件生命周期管理</li>
+      </ul>
+
+      <h2 id="examples">示例与工具</h2>
+      <ul>
+        <li><code>examples/atb_models/atb_framework</code> — ATB 推理框架包装。</li>
+        <li><code>examples/atb_models/atb_llm</code> — ATB LLM 模型适配层。</li>
+        <li><code>tools/llm_manager_python_api_demo</code> — 旧版 Python API 调用示例。</li>
+        <li><code>tools/setup.py</code> — 工具自身的安装入口。</li>
+      </ul>
+
+      <h2 id="tests">测试目录</h2>
+      <ul>
+        <li><code>tests/dlt</code> — 数据 / 张量层 C++ 单测。</li>
+        <li><code>tests/fuzztest_llmmanager</code> — 针对 LLM Manager 的模糊测试。</li>
+        <li><code>tests/pythontest</code> — Python 端单测 / 集成测试。</li>
+        <li><code>tests/run_all_tests.sh</code> — 一键跑全部测试。</li>
+        <li><code>tests/requirements.txt</code> — 测试专用依赖。</li>
+      </ul>
+
+      <h2 id="docs-tree">文档结构</h2>
+      <p><code>docs/zh/</code> 是官方 mkdocs 中文文档，主要分类：</p>
+      <ul>
+        <li><code>user_guide/</code> — 安装 / 快速入门 / 使用手册 / 模型支持列表 / 特性。</li>
+        <li><code>developer_guide/</code> — 架构设计 / 编译指南 / 迁移与适配。</li>
+        <li><code>faq/</code> — 常见问题。</li>
+        <li><code>release_notes.md</code> — 版本说明。</li>
+      </ul>
+      <p>本 Wiki 与 mkdocs 文档<strong>不冲突</strong>：mkdocs 文档面向终端用户的官方说明，
+      Wiki 则按主题对源码进行二次归纳。</p>
+
+    </article>
+
+    <footer class="page-footer">
+      <a class="pager-prev" href="architecture.html">架构总览</a>
+      <a class="pager-next" href="server-api.html">服务端与 API</a>
+      <div class="copyright">
+        © 2025–2026 MindIE-LLM Wiki · 内容基于源码归纳，与官方文档可能存在表述差异
+      </div>
+    </footer>
+  </main>
+
+  <aside class="toc"></aside>
+</div>
+
+<script src="assets/js/wiki.js"></script>
+</body>
+</html>
