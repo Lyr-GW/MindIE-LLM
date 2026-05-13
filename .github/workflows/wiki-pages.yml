@@ -7,13 +7,25 @@
 #   Settings → Pages → Build and deployment → Source 选择 "GitHub Actions"
 #
 # 触发条件：
-#   1) push 到 dev 且 wiki/ 内容源（_build/pages/）/ assets / 生成器 / 本工作流有改动
-#   2) 手动触发（workflow_dispatch）
+#   1) push 到 dev   ─ build + deploy（线上更新）
+#   2) PR  → dev    ─ 仅 build（构建预览，不部署）
+#                     PR 跑出来的 artifact 可在 Actions 页面下载离线预览
+#   3) 手动触发      ─ build + deploy
+#                     可在 Actions 页面选择任意分支（含 PR feature 分支）
+#                     立刻把该分支内容部署到线上 URL，便于在线预览
+#                     ⚠ 注意：会临时覆盖线上版本，直到下次合入 dev 才恢复
 
 name: Deploy Wiki to GitHub Pages
 
 on:
   push:
+    branches: [dev]
+    paths:
+      - 'wiki/_build/**'
+      - 'wiki/assets/**'
+      - 'wiki/.nojekyll'
+      - '.github/workflows/wiki-pages.yml'
+  pull_request:
     branches: [dev]
     paths:
       - 'wiki/_build/**'
@@ -100,6 +112,8 @@ jobs:
   deploy:
     name: Deploy to GitHub Pages
     needs: build
+    # PR 触发时只 build 不 deploy；push 到 dev 与手动 dispatch 才走部署
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
