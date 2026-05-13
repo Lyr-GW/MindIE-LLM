@@ -114,18 +114,31 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
+      # JamesIves 需要一个 git 工作目录才能初始化部署
+      - name: Checkout (for git context)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
       - name: Download generated site
         uses: actions/download-artifact@v4
         with:
           name: wiki-site
           path: site
 
+      - name: Verify .nojekyll present (block GitHub auto-Jekyll)
+        run: |
+          if [ ! -f site/.nojekyll ]; then
+            echo "::warning::.nojekyll missing, creating one"
+            touch site/.nojekyll
+          fi
+
       - name: Deploy to gh-pages root
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           branch: gh-pages
           folder: site
-          # 主站部署时保留 pr-preview/* 不被清空
+          # 主站部署时保留 pr-preview/* 不被清空；docs/ src/ 等会被自动清理
           clean-exclude: pr-preview
           commit-message: 'deploy(wiki): main from ${{ github.sha }}'
 
@@ -137,6 +150,12 @@ jobs:
       github.event.action != 'closed'
     runs-on: ubuntu-latest
     steps:
+      # rossjrw 内部使用 JamesIves，同样需要 git 工作目录
+      - name: Checkout (for git context)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
       - name: Download generated site
         uses: actions/download-artifact@v4
         with:
@@ -158,6 +177,11 @@ jobs:
       github.event.action == 'closed'
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout (for git context)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
       - name: Remove preview directory
         uses: rossjrw/pr-preview-action@v1
         with:
