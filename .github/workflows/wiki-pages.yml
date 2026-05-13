@@ -1,13 +1,13 @@
 # MindIE-LLM Wiki — 部署到 GitHub Pages
 #
-# 把仓库里的 wiki/ 目录作为站点根目录发布到 GitHub Pages。
+# 流程：在 CI 期间用 wiki/_build/gen.py 从内容片段生成完整 HTML，再发布到 GitHub Pages。
 # 站点 URL: https://<owner>.github.io/<repo>/
 #
 # 启用方式（仓库管理员只需做一次）：
 #   Settings → Pages → Build and deployment → Source 选择 "GitHub Actions"
 #
 # 触发条件：
-#   1) push 到 master 且 wiki/ 或本工作流文件有改动
+#   1) push 到 dev 且 wiki/ 内容源（_build/pages/）/ assets / 生成器 / 本工作流有改动
 #   2) 手动触发（workflow_dispatch）
 
 name: Deploy Wiki to GitHub Pages
@@ -16,7 +16,9 @@ on:
   push:
     branches: [dev]
     paths:
-      - 'wiki/**'
+      - 'wiki/_build/**'
+      - 'wiki/assets/**'
+      - 'wiki/.nojekyll'
       - '.github/workflows/wiki-pages.yml'
   workflow_dispatch:
 
@@ -44,6 +46,24 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Generate HTML from content fragments
+        working-directory: wiki
+        run: |
+          # 清理可能残留的渲染产物（保险）
+          find . -maxdepth 1 -type f -name '*.html' -delete
+          rm -rf features
+          # 用 _build/pages/ 中的内容源 + 模板生成全部页面
+          python3 _build/gen.py
+          echo '--- generated files ---'
+          ls *.html
+          ls features/*.html | head -5
+          echo "total: $(ls *.html features/*.html | wc -l) html files"
+
       - name: Sanity check (no broken internal links)
         run: |
           python3 - <<'PY'
@@ -67,6 +87,10 @@ jobs:
           print(f'checked {total} pages')
           sys.exit(0 if ok else 1)
           PY
+
+      - name: Strip generator + sources from artifact
+        # _build/ 仅是源码片段 + 生成器，不需要发到 Pages
+        run: rm -rf wiki/_build
 
       - name: Upload artifact (wiki/)
         uses: actions/upload-pages-artifact@v3
