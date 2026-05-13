@@ -1,0 +1,100 @@
+---
+title: W8A8SC 稀疏量化
+---
+      <h1>W8A8SC 稀疏量化</h1>
+      <p class="lead">三步合一：<strong>稀疏化 + 8-bit 量化 + 压缩存储</strong>。
+      面向 Atlas 300I Duo 推理卡，最大化降低权重体积，把更多模型塞进同一张卡。</p>
+
+      <h2 id="three">三步流程</h2>
+      <pre class="ascii-art">
+   原 fp16 权重
+        │
+        ▼  ① 稀疏（msModelSlim）
+   W8A8S：少数权重置零，剩余值仍为 fp16
+        │
+        ▼  ② INT8 量化
+   仍为 [n,k] int8，部分位置为 0
+        │
+        ▼  ③ 压缩
+   W8A8SC：只保存非零元素 + 索引（index）+ 压缩信息（info）
+</pre>
+
+      <h2 id="why">为什么稀疏 + 量化 + 压缩</h2>
+      <ul>
+        <li>仅量化（W8A8）：权重压到 1/2。</li>
+        <li>仅稀疏：物理存储不变，只是大量 0；不压缩则带宽收益为 0。</li>
+        <li><strong>稀疏 + 压缩</strong>：把 0 完全省去，权重体积可降至 1/3 ~ 1/4。</li>
+        <li>再叠 INT8 量化：极限可降至 1/6 以下。</li>
+      </ul>
+
+      <h2 id="weights">权重布局</h2>
+      <p>压缩后权重按 TP 数分多份目录：</p>
+      <pre data-lang="text"><code>├─ part0-of-4
+│  ├─ quant_model_weight_w8a8sc.safetensors
+│  └─ quant_model_description.json
+├─ part1-of-4 / ... / part3-of-4
+└─ tokenizer*</code></pre>
+      <pre data-lang="json"><code>// part0-of-4/quant_model_description.json
+{
+  "model_quant_type": "W8A8SC",
+  "transformer.h.0.attn.c_attn.weight": "W8A8SC",   // 非零值（int8）
+  "transformer.h.0.attn.c_attn.index":  "W8A8SC",   // 非零位置索引
+  "transformer.h.0.attn.c_attn.info":   "W8A8SC",   // 压缩参数
+  "transformer.h.0.attn.c_attn.input_scale":  "W8A8S",
+  "transformer.h.0.attn.c_attn.input_offset": "W8A8S",
+  "transformer.h.0.attn.c_attn.deq_scale":    "W8A8S",
+  "transformer.h.0.attn.c_attn.quant_bias":   "W8A8S"
+}</code></pre>
+      <p>关键张量：</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>张量</th><th>weight</th><th>index</th><th>input_scale</th><th>quant_bias</th><th>deq_scale</th></tr></thead>
+          <tbody>
+            <tr><td>dtype</td><td>int8</td><td>int8</td><td>fp16</td><td>int32</td><td>int64</td></tr>
+            <tr><td>shape</td><td>[x] (x ∈ (0, n×k])</td><td>[y]（解码索引）</td><td>[1]</td><td>[n]</td><td>[n]</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p><code>y</code> 由稀疏 tile 大小决定，详见官方 md。</p>
+
+      <h2 id="enable">如何开启</h2>
+      <pre data-lang="bash"><code># 1. 量化为 W8A8S（仍未压缩）
+msmodelslim quant \
+  --model_path /home/Qwen3-8B \
+  --save_path  /home/Qwen3-8B-W8A8S \
+  --device     npu \
+  --model_type Qwen3-8B \
+  --quant_type w8a8s \
+  --trust_remote_code True
+
+# 2. 切分 + 压缩
+torchrun --nproc_per_node 4 \
+  -m examples.convert.model_slim.sparse_compressor \
+  --model_path /home/Qwen3-8B-W8A8S \
+  --save_directory /home/Qwen3-8B-W8A8SC
+
+# 3. 启动推理（每张卡读对应 partN-of-4）
+cd ${ATB_SPEED_HOME_PATH}
+bash examples/models/qwen/run_pa.sh -m /home/Qwen3-8B-W8A8SC --trust_remote_code true</code></pre>
+
+      <h2 id="limit">已知限制</h2>
+      <ul>
+        <li>压缩算法和硬件强相关，<strong>仅 Atlas 300I Duo 推理卡支持</strong>。</li>
+        <li>不支持 bfloat16 权重。</li>
+        <li>仅支持 Qwen3-8B、Qwen3-14B、Qwen3-32B。</li>
+        <li>仅与 <a href="speculative-decoding.html">并行解码</a>、<a href="prefix-cache.html">Prefix Cache</a>、
+        <a href="function-call.html">Function Call</a>、长序列特性同时使用。</li>
+      </ul>
+
+      <h2 id="benefit">收益</h2>
+      <ul>
+        <li>典型稀疏率 50–70%；权重体积可低至 fp16 的 1/4。</li>
+        <li>matmul 走稀疏算子，吞吐提升 1.3–1.6×。</li>
+        <li>需要业务侧评估精度损失（多 1–2 pp）。</li>
+      </ul>
+
+      <h2 id="ref">参考</h2>
+      <ul>
+        <li>本仓库官方文档：<code>docs/zh/user_guide/feature/w8a8sc.md</code></li>
+        <li>相关：<a href="w16a16sc.html">W16A16SC 稀疏</a>、<a href="w8a8.html">W8A8</a></li>
+      </ul>

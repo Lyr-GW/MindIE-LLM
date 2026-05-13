@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>异步调度 · MindIE-LLM Wiki</title>
+<meta name="description" content="异步调度 — MindIE-LLM Wiki">
+<link rel="icon" href="../assets/img/favicon.ico">
+<link rel="stylesheet" href="../assets/css/wiki.css">
+</head>
+<body>
+<header class="site-header">
+  <a class="brand" href="../index.html">
+    <img src="../assets/img/ascend-logo.png" alt="Ascend">
+    <span>MindIE-<span class="accent">LLM</span> Wiki</span>
+  </a>
+  <div class="header-spacer"></div>
+  <nav class="header-links">
+    <a href="https://github.com/Lyr-GW/MindIE-LLM" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://gitcode.com/Ascend/MindIE-LLM" target="_blank" rel="noopener">GitCode</a>
+    <a href="https://www.hiascend.com/" target="_blank" rel="noopener">昇腾社区</a>
+  </nav>
+  <button class="theme-toggle" type="button">☾ 暗色</button>
+  <button class="menu-toggle" type="button" aria-label="菜单">☰</button>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <input class="sidebar-filter" placeholder="筛选目录…" aria-label="筛选目录">
+    <nav>
+      <div class="nav-group">
+        <div class="nav-group-title">入门</div>
+        <ul>
+          <li><a href="../index.html">首页</a></li>
+          <li><a href="../introduction.html">项目简介</a></li>
+          <li><a href="../quick-start.html">快速入门</a></li>
+          <li><a href="../installation.html">安装与编译</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">架构与内核</div>
+        <ul>
+          <li><a href="../architecture.html">架构总览</a></li>
+          <li><a href="../directory.html">目录结构</a></li>
+          <li><a href="../server-api.html">服务端与 API</a></li>
+          <li><a href="../cpp-engine.html">C++ 引擎内核</a></li>
+          <li><a href="../scheduler.html">调度器</a></li>
+          <li><a href="../block-manager.html">KV Cache &amp; Block</a></li>
+          <li><a href="../python-runtime.html">Python 推理框架</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">特性</div>
+        <ul>
+          <li><a href="../features.html">特性总览（索引）</a></li>
+          <li><a href="../quantization.html">量化特性</a></li>
+          <li><a href="../parallelism.html">并行策略</a></li>
+          <li><a href="../acceleration.html">加速特性</a></li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-0" aria-expanded="false"><span>基础并行</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-0">
+          <li><a href="../features/multi-lora.html">Multi-LoRA</a></li>
+          <li><a href="../features/moe.html">MoE</a></li>
+          <li><a href="../features/mla.html">MLA</a></li>
+          <li><a href="../features/expert-load-balance.html">EPLB 负载均衡</a></li>
+          <li><a href="../features/shared-expert.html">共享专家外置</a></li>
+          <li><a href="../features/expert-parallel.html">Expert Parallel</a></li>
+          <li><a href="../features/data-parallel.html">Data Parallel</a></li>
+          <li><a href="../features/tensor-parallel.html">Tensor Parallel</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-1" aria-expanded="false"><span>量化</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-1">
+          <li><a href="../features/anti-outlier.html">离群值抑制</a></li>
+          <li><a href="../features/pdmix-quant.html">PD MIX 量化</a></li>
+          <li><a href="../features/w8a8.html">W8A8</a></li>
+          <li><a href="../features/w4a8.html">W4A8 混合</a></li>
+          <li><a href="../features/w8a16.html">W8A16</a></li>
+          <li><a href="../features/attention-quant.html">Attention 量化</a></li>
+          <li><a href="../features/fa3-quant.html">FA3 量化</a></li>
+          <li><a href="../features/kv-int8.html">KV Cache Int8</a></li>
+          <li><a href="../features/w8a8sc.html">W8A8SC 稀疏</a></li>
+          <li><a href="../features/w16a16sc.html">W16A16SC 稀疏</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-2" aria-expanded="false"><span>长序列</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-2">
+          <li><a href="../features/context-parallel.html">Context Parallel</a></li>
+          <li><a href="../features/sequence-parallel.html">Sequence Parallel</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-3" aria-expanded="false"><span>调度</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-3">
+          <li><a href="../features/async-scheduling.html">异步调度</a></li>
+          <li><a href="../features/splitfuse.html">SplitFuse</a></li>
+          <li><a href="../features/slo-scheduling.html">SLO 调度优化</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-4" aria-expanded="false"><span>加速</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-4">
+          <li><a href="../features/micro-batch.html">Micro Batch</a></li>
+          <li><a href="../features/speculative-decoding.html">投机解码 / Lookahead</a></li>
+          <li><a href="../features/mtp.html">MTP</a></li>
+          <li><a href="../features/prefix-cache.html">Prefix Cache</a></li>
+          <li><a href="../features/kv-cache-pool.html">KV Cache 池化</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-5" aria-expanded="false"><span>交互与其他</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-5">
+          <li><a href="../features/function-call.html">Function Call</a></li>
+          <li><a href="../features/reasoning.html">思考解析与预算</a></li>
+          <li><a href="../features/structured-output.html">结构化输出</a></li>
+          <li><a href="../features/offline-weight.html">权重离线切分</a></li>
+          </ul>
+        </li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">开发</div>
+        <ul>
+          <li><a href="../development.html">开发与贡献</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">参考</div>
+        <ul>
+          <li><a href="../faq.html">常见问题</a></li>
+          <li><a href="../references.html">参考资料</a></li>
+        </ul>
+      </div>
+    </nav>
+  </aside>
+
+  <main class="content">
+    <nav class="breadcrumb">
+      <a href="../index.html">首页</a><span class="sep">›</span><a href="../features.html">特性</a><span class="sep">›</span><span>异步调度</span>
+    </nav>
+    <article>
+      <h1>异步调度</h1>
+      <p class="lead">让 CPU 上的<strong>请求调度 / 数据准备 / 结果回收</strong>与 NPU 上的
+      <strong>模型推理</strong>并行执行。一个简单的多线程改造，可在大 batch、长输出场景下
+      把 CPU 时间「藏到」NPU 计算之后，吞吐显著提升。</p>
+
+      <h2 id="problem">问题：CPU/NPU 串行</h2>
+      <p>同步推理流水：</p>
+      <pre class="ascii-art">
+   时间 →
+   CPU:  [调度 准备] ─────────── [回收 响应] [调度 准备] ─── ...
+   NPU:               [推理 + 采样]                          [推理 + 采样]
+              ↑           ↑                ↑
+            CPU 等 NPU    NPU 算           NPU 等 CPU
+</pre>
+      <p>每一轮中 CPU、NPU 都有空闲段。Batch 越大、输出越长，<strong>调度准备 / 结果回收</strong>
+      的绝对时间越长，浪费越严重。</p>
+
+      <h2 id="async">异步思路</h2>
+      <pre class="ascii-art">
+   时间 →
+   CPU:  [调度 N+0] [回收 N-1] [调度 N+1] [回收 N+0] [调度 N+2] [回收 N+1] ...
+   NPU:           [推理 N+0]            [推理 N+1]             [推理 N+2]
+</pre>
+      <ul>
+        <li><strong>双 buffer + 多线程</strong>：当 NPU 在算 N，CPU 已经在为 N+1 准备数据，
+          同时为 N-1 做后处理。</li>
+        <li><strong>调度领先 NPU 一轮</strong>：通过 <code>maxScheduledBatch_ = 2</code>
+          实现「异步单发」。</li>
+        <li><strong>EOS 重算代价</strong>：已进入 EOS 状态的请求会被多算 1 轮，
+          浪费 NPU 显存和算力的小额成本。</li>
+      </ul>
+
+      <h2 id="enable">如何开启</h2>
+      <pre data-lang="bash"><code># 1. 设置环境变量（D 节点开启）
+export MINDIE_ASYNC_SCHEDULING_ENABLE=1
+
+# 2. 启动服务
+mindie_llm_server</code></pre>
+      <div class="admonition note">
+        <div class="admonition-title">📌 PD 分离</div>
+        <p>仅在 D 节点开启异步调度；P 节点不需要。</p>
+      </div>
+
+      <h2 id="impl">在调度器中的体现</h2>
+      <p><span class="path">src/scheduler/scheduler.h</span> 中：</p>
+      <pre data-lang="cpp"><code>// 调度实际下发的批次：同步=1，异步（异步单发）=2
+size_t maxScheduledBatch_{1};</code></pre>
+      <p>异步打开后，调度循环允许提前计划下一轮 batch；执行器线程在 NPU 完成当前轮后立即拉走预备好的下一轮。</p>
+
+      <h2 id="when">什么时候收益最大</h2>
+      <ul>
+        <li><strong>大 maxBatchSize</strong>（≥ 64）：CPU 端处理量随 batch 线性涨。</li>
+        <li><strong>长输出</strong>：每轮 decode 时间相对短，CPU 端反而变成瓶颈。</li>
+        <li><strong>多 token 后处理（结构化输出 / Function Call）</strong>：CPU 计算密集时收益尤其大。</li>
+      </ul>
+
+      <h2 id="limit">已知限制</h2>
+      <ul>
+        <li>支持 PD 混部、PD 分离场景。</li>
+        <li>不能与 <a href="speculative-decoding.html">Lookahead</a>、<strong>Memory Decoding</strong>
+          同时开启。</li>
+        <li>暂不支持 <code>n</code>、<code>best_of</code>、<code>use_beam_search</code>
+          等多序列后处理参数。</li>
+      </ul>
+
+      <h2 id="benefit">收益</h2>
+      <ul>
+        <li>典型场景吞吐 +10–25%。</li>
+        <li>对小 batch / 短输出收益有限，甚至可能因 EOS 重算反而降低。</li>
+      </ul>
+
+      <h2 id="ref">参考</h2>
+      <ul>
+        <li>本仓库官方文档：<code>docs/zh/user_guide/feature/asynchronous_scheduling.md</code></li>
+      </ul>
+
+    </article>
+
+    <footer class="page-footer">
+      <a class="pager-prev" href="sequence-parallel.html">Sequence Parallel</a>
+      <a class="pager-next" href="splitfuse.html">SplitFuse</a>
+      <div class="copyright">
+        © 2025–2026 MindIE-LLM Wiki · 内容基于源码归纳，与官方文档可能存在表述差异
+      </div>
+    </footer>
+  </main>
+
+  <aside class="toc"></aside>
+</div>
+
+<script src="../assets/js/wiki.js"></script>
+</body>
+</html>

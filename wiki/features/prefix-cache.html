@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prefix Cache · MindIE-LLM Wiki</title>
+<meta name="description" content="Prefix Cache — MindIE-LLM Wiki">
+<link rel="icon" href="../assets/img/favicon.ico">
+<link rel="stylesheet" href="../assets/css/wiki.css">
+</head>
+<body>
+<header class="site-header">
+  <a class="brand" href="../index.html">
+    <img src="../assets/img/ascend-logo.png" alt="Ascend">
+    <span>MindIE-<span class="accent">LLM</span> Wiki</span>
+  </a>
+  <div class="header-spacer"></div>
+  <nav class="header-links">
+    <a href="https://github.com/Lyr-GW/MindIE-LLM" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://gitcode.com/Ascend/MindIE-LLM" target="_blank" rel="noopener">GitCode</a>
+    <a href="https://www.hiascend.com/" target="_blank" rel="noopener">昇腾社区</a>
+  </nav>
+  <button class="theme-toggle" type="button">☾ 暗色</button>
+  <button class="menu-toggle" type="button" aria-label="菜单">☰</button>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <input class="sidebar-filter" placeholder="筛选目录…" aria-label="筛选目录">
+    <nav>
+      <div class="nav-group">
+        <div class="nav-group-title">入门</div>
+        <ul>
+          <li><a href="../index.html">首页</a></li>
+          <li><a href="../introduction.html">项目简介</a></li>
+          <li><a href="../quick-start.html">快速入门</a></li>
+          <li><a href="../installation.html">安装与编译</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">架构与内核</div>
+        <ul>
+          <li><a href="../architecture.html">架构总览</a></li>
+          <li><a href="../directory.html">目录结构</a></li>
+          <li><a href="../server-api.html">服务端与 API</a></li>
+          <li><a href="../cpp-engine.html">C++ 引擎内核</a></li>
+          <li><a href="../scheduler.html">调度器</a></li>
+          <li><a href="../block-manager.html">KV Cache &amp; Block</a></li>
+          <li><a href="../python-runtime.html">Python 推理框架</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">特性</div>
+        <ul>
+          <li><a href="../features.html">特性总览（索引）</a></li>
+          <li><a href="../quantization.html">量化特性</a></li>
+          <li><a href="../parallelism.html">并行策略</a></li>
+          <li><a href="../acceleration.html">加速特性</a></li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-0" aria-expanded="false"><span>基础并行</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-0">
+          <li><a href="../features/multi-lora.html">Multi-LoRA</a></li>
+          <li><a href="../features/moe.html">MoE</a></li>
+          <li><a href="../features/mla.html">MLA</a></li>
+          <li><a href="../features/expert-load-balance.html">EPLB 负载均衡</a></li>
+          <li><a href="../features/shared-expert.html">共享专家外置</a></li>
+          <li><a href="../features/expert-parallel.html">Expert Parallel</a></li>
+          <li><a href="../features/data-parallel.html">Data Parallel</a></li>
+          <li><a href="../features/tensor-parallel.html">Tensor Parallel</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-1" aria-expanded="false"><span>量化</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-1">
+          <li><a href="../features/anti-outlier.html">离群值抑制</a></li>
+          <li><a href="../features/pdmix-quant.html">PD MIX 量化</a></li>
+          <li><a href="../features/w8a8.html">W8A8</a></li>
+          <li><a href="../features/w4a8.html">W4A8 混合</a></li>
+          <li><a href="../features/w8a16.html">W8A16</a></li>
+          <li><a href="../features/attention-quant.html">Attention 量化</a></li>
+          <li><a href="../features/fa3-quant.html">FA3 量化</a></li>
+          <li><a href="../features/kv-int8.html">KV Cache Int8</a></li>
+          <li><a href="../features/w8a8sc.html">W8A8SC 稀疏</a></li>
+          <li><a href="../features/w16a16sc.html">W16A16SC 稀疏</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-2" aria-expanded="false"><span>长序列</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-2">
+          <li><a href="../features/context-parallel.html">Context Parallel</a></li>
+          <li><a href="../features/sequence-parallel.html">Sequence Parallel</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-3" aria-expanded="false"><span>调度</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-3">
+          <li><a href="../features/async-scheduling.html">异步调度</a></li>
+          <li><a href="../features/splitfuse.html">SplitFuse</a></li>
+          <li><a href="../features/slo-scheduling.html">SLO 调度优化</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-4" aria-expanded="false"><span>加速</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-4">
+          <li><a href="../features/micro-batch.html">Micro Batch</a></li>
+          <li><a href="../features/speculative-decoding.html">投机解码 / Lookahead</a></li>
+          <li><a href="../features/mtp.html">MTP</a></li>
+          <li><a href="../features/prefix-cache.html">Prefix Cache</a></li>
+          <li><a href="../features/kv-cache-pool.html">KV Cache 池化</a></li>
+          </ul>
+        </li>
+        <li>
+          <button type="button" class="nav-sub-toggle" aria-controls="feat-sub-5" aria-expanded="false"><span>交互与其他</span><span class="caret">▸</span></button>
+          <ul class="nav-sub-list" id="feat-sub-5">
+          <li><a href="../features/function-call.html">Function Call</a></li>
+          <li><a href="../features/reasoning.html">思考解析与预算</a></li>
+          <li><a href="../features/structured-output.html">结构化输出</a></li>
+          <li><a href="../features/offline-weight.html">权重离线切分</a></li>
+          </ul>
+        </li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">开发</div>
+        <ul>
+          <li><a href="../development.html">开发与贡献</a></li>
+        </ul>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">参考</div>
+        <ul>
+          <li><a href="../faq.html">常见问题</a></li>
+          <li><a href="../references.html">参考资料</a></li>
+        </ul>
+      </div>
+    </nav>
+  </aside>
+
+  <main class="content">
+    <nav class="breadcrumb">
+      <a href="../index.html">首页</a><span class="sep">›</span><a href="../features.html">特性</a><span class="sep">›</span><span>Prefix Cache</span>
+    </nav>
+    <article>
+      <h1>Prefix Cache（前缀缓存）</h1>
+      <p class="lead">把上一轮 session 的 KV Cache 通过<strong>前缀哈希</strong>保留下来，
+      新请求若有相同前缀直接命中复用，跳过整段 prefill。是<strong>多轮对话 / few-shot</strong>
+      场景的杀手级特性。</p>
+
+      <h2 id="why">两个动机</h2>
+      <ul>
+        <li><strong>显存压力</strong>：长上下文 KV 体积大，希望多个公共前缀的请求<em>共享</em>同一份 KV。</li>
+        <li><strong>跨 session 复用</strong>：朴素 KV Cache 只对当前 session 有效；session 结束后被释放。</li>
+      </ul>
+
+      <h2 id="how">怎么命中</h2>
+      <p>详细机制见 <a href="../block-manager.html#prefix">block-manager → PrefixCacheBlockAllocator</a>。
+      简化版：</p>
+      <pre data-lang="text"><code>每个 block 计算 prefixHash = HashCombine(parent_hash, tokens, extra_hash)
+分配新 block 时先 cachedBlocks_.find(hash)
+命中 → 复用并 +1 引用计数
+未命中 → 申请新 block，写入 cachedBlocks_[hash] = block_id</code></pre>
+      <p>三个细节决定可命中性：</p>
+      <ul>
+        <li>必须<strong>整 block 填满</strong>才有 hash。</li>
+        <li>父 hash 缺失则当前 hash 无效（必须从 block 0 起复用）。</li>
+        <li><code>extraHash</code> 把 LoRA / 量化模式吃进去，避免错配。</li>
+      </ul>
+
+      <h2 id="enable">如何开启</h2>
+      <pre data-lang="json"><code>"ModelConfig": [{
+  "modelName": "DeepSeek-R1_w8a8",
+  "plugin_params": "{\"plugin_type\":\"prefix_cache\"}",
+  "modelWeightPath": "/data/weights/DeepSeek-R1_w8a8",
+  "worldSize": 8,
+  "models": {
+    "deepseekv2": {
+      "kv_cache_options": { "enable_nz": true }   // DeepSeek 必开
+    }
+  }
+}]</code></pre>
+      <p>多个插件可叠加，用英文逗号分隔：</p>
+      <pre data-lang="json"><code>"plugin_params": "{\"plugin_type\":\"mtp,prefix_cache\",\"num_speculative_tokens\":1}"</code></pre>
+
+      <h2 id="metrics">命中率指标</h2>
+      <p><a href="../block-manager.html#hit-rate">HitRateCalculator</a> 维护滑动窗口的命中率，
+      通过 <code>/metrics</code> 暴露。命中率 ≥ 30% 时收益明显；持续 &lt; 5% 时建议关闭以节省哈希开销。</p>
+
+      <h2 id="when">什么时候收益最大</h2>
+      <ul>
+        <li><strong>多轮对话</strong>：每次请求都包含历史对话，前缀复用率极高。</li>
+        <li><strong>Few-shot prompting</strong>：固定的 system prompt + 示例占比高。</li>
+        <li><strong>API 编排</strong>：固定 schema 模板。</li>
+      </ul>
+
+      <h2 id="example">实战示例</h2>
+      <p>第一次请求：</p>
+      <pre data-lang="bash"><code>curl https://127.0.0.1:1025/generate -X POST \
+  -d '{"inputs": "Question: ...一段 1k token 的题目和选项...\nAnswer:",
+       "parameters": {"max_new_tokens": 512}}'</code></pre>
+      <p>第二次请求（保持前缀，追加新内容）：</p>
+      <pre data-lang="bash"><code>curl https://127.0.0.1:1025/generate -X POST \
+  -d '{"inputs": "Question: ...同上 1k token...\nAnswer: 上一轮答案\n\
+                   Question: 新一轮问题\nAnswer:",
+       "parameters": {"max_new_tokens": 512}}'
+# 第二次 prefill 时，前 1k token 直接命中 KV Cache，TTFT 显著降低</code></pre>
+      <p>注意：复用按 block 对齐 — 比如第一轮 prompt 164 token、blockSize=128 时，
+      实际复用前 128 token；剩 36 token 仍需 prefill。</p>
+
+      <h2 id="limit">已知限制</h2>
+      <ul>
+        <li>Atlas 800I A2 / A3、Atlas 300I Duo 支持。</li>
+        <li>Qwen2 / 2.5 / 3、DeepSeek-R1 / V3 / V3.1 支持。</li>
+        <li>支持 W4A8 / W8A8 / PDMIX / 稀疏量化；其它量化暂不支持。</li>
+        <li>不能与 <a href="multi-lora.html">Multi-LoRA</a> 同开。</li>
+        <li>PD 分离场景：仅 P 节点开启。</li>
+        <li>不支持 prefix cache + CP + SP + function call(multiturn) 叠加。</li>
+        <li>命中率低时不要开。</li>
+      </ul>
+
+      <h2 id="ref">参考</h2>
+      <ul>
+        <li>本仓库官方文档：<code>docs/zh/user_guide/feature/prefix_cache.md</code></li>
+        <li>实现详解：<a href="../block-manager.html#prefix">Block Manager → PrefixCacheBlockAllocator</a></li>
+        <li>叠加：<a href="kv-cache-pool.html">KV Cache 池化</a></li>
+      </ul>
+
+    </article>
+
+    <footer class="page-footer">
+      <a class="pager-prev" href="mtp.html">MTP</a>
+      <a class="pager-next" href="kv-cache-pool.html">KV Cache 池化</a>
+      <div class="copyright">
+        © 2025–2026 MindIE-LLM Wiki · 内容基于源码归纳，与官方文档可能存在表述差异
+      </div>
+    </footer>
+  </main>
+
+  <aside class="toc"></aside>
+</div>
+
+<script src="../assets/js/wiki.js"></script>
+</body>
+</html>

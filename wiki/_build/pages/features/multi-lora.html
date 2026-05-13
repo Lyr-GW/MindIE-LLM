@@ -1,0 +1,100 @@
+---
+title: Multi-LoRA
+---
+      <h1>Multi-LoRA</h1>
+      <p class="lead">基于一个基础大模型，<strong>同时托管多个 LoRA Adapter</strong>，请求级动态切换。
+      把 N 个微调模型「合住」一份基础权重，是 SaaS / 多租户 LLM 服务的核心特性。</p>
+
+      <h2 id="lora-101">什么是 LoRA</h2>
+      <p>LoRA（Low-Rank Adaptation）通过把权重矩阵的微调项分解为两个小矩阵的乘积来减少训练参数：</p>
+      <pre data-lang="text"><code>原始: y = W · x      (W: [d_out, d_in])
+微调: W' = W + B·A    (B: [d_out, r], A: [r, d_in], r ≪ min(d_out, d_in))</code></pre>
+      <p>仅 B 和 A 参与训练（参数量约为 <code>2 r (d_out+d_in)</code>），训练成本是全量微调的 ~1%。
+      推理时 Adapter 可<strong>合并到 W</strong>（合并后跟普通模型一样），也可<strong>动态加权</strong>
+      （灵活切换不同 LoRA）。</p>
+
+      <h2 id="why-multi">为什么 Multi-LoRA</h2>
+      <ul>
+        <li><strong>共享显存</strong>：基础权重只装一次（70B 一份就 ~140 GB），Adapter 各自约几十 MB。</li>
+        <li><strong>请求级切换</strong>：每次请求带 <code>lora_id</code>，引擎查表挑权重，
+          不同请求可在<strong>同一 batch</strong> 中运行。</li>
+        <li><strong>动态加载 / 卸载</strong>：通过管理端 API 在运行时增删 Adapter，
+          不必重启服务。</li>
+      </ul>
+
+      <h2 id="weights">Adapter 权重格式</h2>
+      <pre data-lang="text"><code>adapter1/
+├─ adapter_config.json       # r、lora_alpha、target_modules
+└─ adapter_model.safetensors # base_model.model.&lt;layer&gt;.lora_A.weight / lora_B.weight</code></pre>
+      <p>键名规则：在基础模型张量名前加 <code>base_model.model.</code> 前缀、后加
+      <code>.lora_A.weight</code> / <code>.lora_B.weight</code>。例：</p>
+      <pre data-lang="text"><code>基础: model.layers.9.self_attn.v_proj.weight
+LoRA: base_model.model.model.layers.9.self_attn.v_proj.lora_A.weight
+      base_model.model.model.layers.9.self_attn.v_proj.lora_B.weight</code></pre>
+
+      <h2 id="enable">如何开启</h2>
+
+      <h3 id="config">服务化配置</h3>
+      <pre data-lang="json"><code>"ModelDeployConfig": {
+  "ModelConfig": [{
+    "modelName": "llama3.1-70b",
+    "modelWeightPath": "/data/weights/llama3.1-70b-safetensors",
+    "worldSize": 8
+  }],
+  "maxLoras": 4,            // 同时驻留显存的 Adapter 数上限
+  "maxLoraRank": 296,       // 支持 Adapter 的最大 r
+  "LoraModules": [{
+    "name": "adapter1",
+    "path": "/data/lora/llama3.1-70b-lora-1",
+    "baseModelName": "llama3.1-70b"
+  }]
+}</code></pre>
+
+      <h3 id="dyn-mgmt">运行时管理</h3>
+      <pre data-lang="bash"><code># 加载新 Adapter（管理端口）
+curl -X POST http://127.0.0.2:1026/v1/load_lora_adapter \
+  -H "Content-Type: application/json" \
+  -d '{"lora_name":"adapter2","lora_path":"/data/lora/llama3.1-70b-lora-2"}'
+
+# 卸载
+curl -X POST 127.0.0.2:1026/v1/unload_lora_adapter \
+  -d '{"lora_name":"adapter2"}'
+
+# 查看可用模型 / Adapter
+curl http://127.0.0.1:1025/v1/models</code></pre>
+
+      <h3 id="request">请求侧</h3>
+      <p>把 <code>"model"</code> 字段设为基础模型名 → 不走 LoRA；设为 Adapter 名 → 启用对应 LoRA：</p>
+      <pre data-lang="bash"><code>curl http://127.0.0.1:1025/generate -X POST \
+  -d '{"model":"adapter1","prompt":"Q: ...\nA:","max_tokens":32}'</code></pre>
+
+      <h2 id="impl">引擎内部</h2>
+      <p>对应 <span class="path">src/engine/lora_manager.cpp</span> + Python 侧
+      <span class="path">mindie_llm/runtime/lora/</span>。流程：</p>
+      <ol>
+        <li>启动时把基础权重 + 已声明的全部 Adapter 加载到 NPU；</li>
+        <li>调度器发现请求带 <code>lora_id</code>，把 ID 注入 SequenceGroup metadata；</li>
+        <li>组 batch 时不区分 LoRA — 同 batch 可有多个不同 LoRA 请求；</li>
+        <li>Linear 层算 forward 时通过 <code>LoraOpsMixin</code> 把每个请求的 LoRA Δ 一并计算并叠加：
+          <code>y = (W·x) + (Bᵢ · (Aᵢ · x))</code>；</li>
+        <li>Prefix Cache 哈希中加入 <code>extraHash = lora_id</code>，避免不同 LoRA 错配 KV。</li>
+      </ol>
+
+      <h2 id="limit">限制</h2>
+      <ul>
+        <li>Atlas 800I A2 / A3、Atlas 300I Duo 支持。</li>
+        <li>Adapter 数量受显存上限约束，建议 ≤ 10。</li>
+        <li>仅 ATB Models Python 组图模式支持动态加 / 卸载。</li>
+        <li>当前版本与<strong>量化 / PD 分离 / 并行解码 / SplitFuse / MTP / 异步调度 /
+          Micro Batch / Prefix Cache</strong> <strong>不能同开</strong>。</li>
+        <li>仅支持 Qwen2.5-7B/14B/32B/72B、Qwen3-32B、LLaMA3.1-8B/70B、Qwen2-72B。</li>
+        <li>LoRA 名称 ≤ 256 字符；线性层支持 LoRA、其它层不行。</li>
+        <li>仅 vLLM / TGI / OpenAI 兼容接口可指定 LoRA。</li>
+      </ul>
+
+      <h2 id="ref">参考</h2>
+      <ul>
+        <li>本仓库官方文档：<code>docs/zh/user_guide/feature/multi_lora.md</code> +
+        <code>docs/zh/developer_guide/architecture_design/MultiLora.md</code></li>
+        <li>论文：<em>LoRA: Low-Rank Adaptation of Large Language Models</em></li>
+      </ul>

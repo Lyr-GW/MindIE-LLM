@@ -1,0 +1,100 @@
+---
+title: W16A16SC 稀疏量化
+---
+      <h1>W16A16SC 浮点稀疏压缩</h1>
+      <p class="lead">W8A8SC 是「INT8 稀疏量化」，本特性是「<strong>FP16 浮点稀疏压缩</strong>」 —
+      不做位宽降低，只做稀疏化和存储压缩。适用于精度敏感、又想从带宽要性能的场景。</p>
+
+      <h2 id="diff">与 W8A8SC 的差异</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th></th><th>W8A8SC</th><th>W16A16SC</th></tr></thead>
+          <tbody>
+            <tr><td>权重位宽</td><td>int8</td><td>fp16（保留精度）</td></tr>
+            <tr><td>激活位宽</td><td>int8</td><td>fp16</td></tr>
+            <tr><td>是否稀疏</td><td>是</td><td>是</td></tr>
+            <tr><td>是否压缩存储</td><td>是</td><td>是</td></tr>
+            <tr><td>是否需要反量化算子</td><td>是</td><td>否</td></tr>
+            <tr><td>支持平台</td><td>Atlas 300I Duo</td><td>Atlas 300I Duo</td></tr>
+            <tr><td>适用模型</td><td>Qwen3-8B/14B/32B</td><td>Qwen3-32B</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="why">为什么浮点稀疏</h2>
+      <p>稀疏化的本质是「少算 + 少存」。相比 INT8：</p>
+      <ul>
+        <li><strong>不需要反量化算子</strong> — 节省一次 op 与 scale 张量；</li>
+        <li><strong>精度等于原 fp16</strong>（仅有稀疏化引入的近似误差）；</li>
+        <li>缺点是单元素仍占 16 bit，单纯压缩比不如 W8A8SC。</li>
+      </ul>
+
+      <h2 id="weights">权重描述</h2>
+      <p>稀疏阶段：</p>
+      <pre data-lang="json"><code>{
+  "model_quant_type": "W16A16S",
+  "model.embed_tokens.weight": "FLOAT",
+  "model.layers.0.self_attn.q_proj.weight": "W16A16S",
+  "model.layers.0.self_attn.k_proj.weight": "W16A16S",
+  "model.layers.0.self_attn.v_proj.weight": "W16A16S",
+  "model.layers.0.self_attn.o_proj.weight": "W16A16S"
+}</code></pre>
+      <p>压缩阶段（按 TP 数切分多份目录）：</p>
+      <pre data-lang="json"><code>{
+  "model_quant_type": "W16A16SC",
+  "transformer.h.0.attn.c_attn.weight": "W16A16SC",
+  "transformer.h.0.attn.c_attn.index":  "W16A16SC",
+  "transformer.h.0.attn.c_attn.info":   "W16A16SC",
+  "transformer.h.0.attn.c_attn.weight.outdim": 2560,    // 用于还原输出维度
+  "transformer.h.0.attn.c_proj.weight.outdim": 5120
+}</code></pre>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>张量</th><th>weight</th><th>quant_bias</th><th>index</th></tr></thead>
+          <tbody>
+            <tr><td>dtype</td><td>int8</td><td>fp32</td><td>int8</td></tr>
+            <tr><td>shape</td><td>[x] 由压缩率决定</td><td>[n]</td><td>[y] 非零索引</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>注意：虽然 weight dtype 标为 int8，本质是「压缩存储格式」 — 解压后参与计算的值仍是 fp16。</p>
+
+      <h2 id="enable">生成 + 压缩 + 推理</h2>
+      <pre data-lang="bash"><code># 1. 浮点稀疏
+msmodelslim quant \
+  --model_path /home/Qwen3-32B \
+  --save_path  /home/Qwen3-32B-W16A16S \
+  --device     npu \
+  --model_type Qwen3-32B \
+  --quant_type w16a16s \
+  --trust_remote_code True
+
+# 2. 切分 + 压缩
+torchrun --nproc_per_node 4 \
+  -m examples.convert.model_slim.sparse_compressor \
+  --model_path /home/Qwen3-32B-W16A16S \
+  --save_directory /home/Qwen3-32B-W16A16SC
+
+# 3. 推理
+cd ${ATB_SPEED_HOME_PATH}
+torchrun --nproc_per_node 4 -m examples.run_pa --model_path /home/Qwen3-32B-W16A16SC</code></pre>
+
+      <h2 id="benefit">收益</h2>
+      <ul>
+        <li>权重体积约 fp16 的 50–60%（视稀疏率）。</li>
+        <li>matmul 走稀疏算子，吞吐提升 1.2–1.4×。</li>
+        <li>精度几乎无损（&lt; 0.3 pp）。</li>
+      </ul>
+
+      <h2 id="limit">已知限制</h2>
+      <ul>
+        <li>仅 Atlas 300I Duo 推理卡支持。</li>
+        <li>仅支持 Qwen3-32B。</li>
+        <li>需要按 TP 数预切分；TP 改变需重新压缩。</li>
+      </ul>
+
+      <h2 id="ref">参考</h2>
+      <ul>
+        <li>本仓库官方文档：<code>docs/zh/user_guide/feature/w16a16sc.md</code></li>
+        <li>相关：<a href="w8a8sc.html">W8A8SC</a></li>
+      </ul>
