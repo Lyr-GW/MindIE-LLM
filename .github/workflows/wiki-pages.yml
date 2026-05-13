@@ -1,39 +1,59 @@
-# MindIE-LLM Wiki — 部署到 GitHub Pages
+# MindIE-LLM Wiki — 部署 + PR 在线预览
 #
-# 把仓库里的 wiki/ 目录作为站点根目录发布到 GitHub Pages。
-# 站点 URL: https://<owner>.github.io/<repo>/
+# 部署架构：
+#   主站：    https://<owner>.github.io/<repo>/
+#   PR 预览： https://<owner>.github.io/<repo>/pr-preview/pr-<N>/
 #
-# 启用方式（仓库管理员只需做一次）：
-#   Settings → Pages → Build and deployment → Source 选择 "GitHub Actions"
+# 主站源 = gh-pages 分支根目录；PR 预览 = gh-pages/pr-preview/pr-<N>/
+# 主站部署不会覆盖 PR 预览（clean-exclude: pr-preview）
+#
+# ─────────────────────────────────────────────────────────────────────
+# 启用方式（仓库管理员一次性设置）：
+#   1) 开启此 workflow（首次合入即可）
+#   2) Settings → Pages → Source 选择 "Deploy from a branch"
+#      Branch: gh-pages  /  (root)
+#      （注意：与之前的 "GitHub Actions" 模式相比要切换一次。
+#        gh-pages 分支由 workflow 自动创建，不需要手工 push。）
+# ─────────────────────────────────────────────────────────────────────
 #
 # 触发条件：
-#   1) push 到 master 且 wiki/ 或本工作流文件有改动
-#   2) 手动触发（workflow_dispatch）
+#   1) push 到 dev   ─ build → deploy 主站
+#   2) PR  → dev 打开 / 同步        ─ build → deploy 预览到 pr-preview/pr-<N>/
+#                                     完成后 rossjrw 自动在 PR 上评论预览 URL
+#   3) PR  → dev 关闭 / 合入        ─ 自动删除该 PR 的预览目录
 
-name: Deploy Wiki to GitHub Pages
+name: Wiki
 
 on:
   push:
     branches: [dev]
     paths:
-      - 'wiki/**'
+      - 'wiki/_build/**'
+      - 'wiki/assets/**'
+      - 'wiki/.nojekyll'
       - '.github/workflows/wiki-pages.yml'
-  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    paths:
+      - 'wiki/_build/**'
+      - 'wiki/assets/**'
+      - 'wiki/.nojekyll'
+      - '.github/workflows/wiki-pages.yml'
 
-# Pages 部署所需的最小权限
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write          # 写 gh-pages 分支
+  pull-requests: write     # 在 PR 上评论预览 URL
 
-# 同一时间只允许一个部署进行；新部署排队，旧的（非进行中）取消
+# 同 PR / 同分支只保留最近一次 run
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: wiki-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
-    name: Build site artifact
+    name: Generate site
+    # PR closed 时跳过 build，跳到 cleanup 任务
+    if: github.event_name != 'pull_request' || github.event.action != 'closed'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -41,8 +61,22 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Generate HTML from content fragments
+        working-directory: wiki
+        run: |
+          find . -maxdepth 1 -type f -name '*.html' -delete
+          rm -rf features
+          python3 _build/gen.py
+          # 从产物中剔除生成器、源、本地辅助文件，让 gh-pages 树干净
+          rm -rf _build .gitignore
+          echo '--- generated ---'
+          ls *.html | wc -l
+          ls features/*.html | wc -l
 
       - name: Sanity check (no broken internal links)
         run: |
@@ -53,8 +87,6 @@ jobs:
           ok = True
           total = 0
           for p in sorted(root.glob('**/*.html')):
-              if '_build' in p.parts:
-                  continue
               total += 1
               txt = p.read_text(encoding='utf-8')
               for m in re.findall(r'href="([^"]+\.html)(?:#[^"]*)?"', txt):
@@ -68,19 +100,67 @@ jobs:
           sys.exit(0 if ok else 1)
           PY
 
-      - name: Upload artifact (wiki/)
-        uses: actions/upload-pages-artifact@v3
+      - name: Upload generated site
+        uses: actions/upload-artifact@v4
         with:
-          path: ./wiki
+          name: wiki-site
+          path: wiki
+          retention-days: 1
+          if-no-files-found: error
 
-  deploy:
-    name: Deploy to GitHub Pages
+  deploy-main:
+    name: Deploy main site
     needs: build
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Download generated site
+        uses: actions/download-artifact@v4
+        with:
+          name: wiki-site
+          path: site
+
+      - name: Deploy to gh-pages root
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages
+          folder: site
+          # 主站部署时保留 pr-preview/* 不被清空
+          clean-exclude: pr-preview
+          commit-message: 'deploy(wiki): main from ${{ github.sha }}'
+
+  deploy-preview:
+    name: Deploy PR preview
+    needs: build
+    if: |
+      github.event_name == 'pull_request' &&
+      github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download generated site
+        uses: actions/download-artifact@v4
+        with:
+          name: wiki-site
+          path: site
+
+      - name: Deploy preview to pr-preview/pr-<N>/
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          source-dir: site
+          preview-branch: gh-pages
+          umbrella-dir: pr-preview
+          action: deploy
+
+  cleanup-preview:
+    name: Remove PR preview
+    if: |
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove preview directory
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          preview-branch: gh-pages
+          umbrella-dir: pr-preview
+          action: remove
